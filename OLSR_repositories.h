@@ -36,6 +36,9 @@
 #include <omnetpp.h>
 #include "uint128.h"
 
+// network coding utils
+#include "ncutils.h"
+
 typedef Uint128 nsaddr_t;
 
 //#ifndef nsaddr_t
@@ -46,6 +49,30 @@ typedef Uint128 nsaddr_t;
 typedef std::vector<nsaddr_t>   PathVector; // Route
 typedef std::list<PathVector>   RouteList;  // Route
 
+
+/*
+ * Network Coding
+ */
+typedef struct OLSR_nc_entry : public cObject
+{
+	PacketDecoder decoder_; // packet decoder assigned to a particular generation
+	int total_pkts_;		// total number of packets a generation can decode
+	int decoded_pkts_;		// number of packets decoded until now
+
+	// TODO: TIMER?
+
+	inline int & total_pkts() {return total_pkts_;}
+	inline int & decoded_pkts() {return decoded_pkts_;}
+	inline PacketDecoder & decoder() {return decoder_;}
+
+	OLSR_nc_entry() {}
+	OLSR_nc_entry(OLSR_nc_entry * e){
+		decoder_ = e->decoder_;
+		total_pkts_ = e->total_pkts_;
+		decoded_pkts_ = e->decoded_pkts_;
+	}
+
+} OLSR_nc_entry;
 
 /// An %OLSR's routing table entry.
 typedef struct OLSR_rt_entry : public cObject

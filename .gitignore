@@ -1,0 +1,5 @@
+OLSR_ET*
+*.vc
+*_m.cc
+*_m.h
+CHANGELOG

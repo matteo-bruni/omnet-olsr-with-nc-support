@@ -432,6 +432,9 @@ packet OLSR_pkt_coded
     short pkt_seq_num;			///< Packet sequence number.
     long sn;                    /// CapProbe packet sequence number
     double send_time;           /// Packet sending timestamp
+    unsigned char coding_vector[];
+    unsigned char payload[];
+    int generation;
     //OLSR_msg msg[];	            ///< Packet body.
     //CodedPacket msg;
 }
