@@ -45,6 +45,7 @@
 
 // networkcoding utils
 #include "ncutils.h"
+#include "OLSR_nc_table.h"
 
 
 
