@@ -55,7 +55,7 @@ typedef std::list<PathVector>   RouteList;  // Route
  */
 typedef struct OLSR_nc_entry : public cObject
 {
-	PacketDecoder decoder_; // packet decoder assigned to a particular generation
+	PacketDecoder* decoder_; // packet decoder assigned to a particular generation
 	int total_pkts_;		// total number of packets a generation can decode
 	int decoded_pkts_;		// number of packets decoded until now
 
@@ -63,9 +63,14 @@ typedef struct OLSR_nc_entry : public cObject
 
 	inline int & total_pkts() {return total_pkts_;}
 	inline int & decoded_pkts() {return decoded_pkts_;}
-	inline PacketDecoder & decoder() {return decoder_;}
+	//inline PacketDecoder & decoder() {return decoder_;}
 
-	OLSR_nc_entry() {}
+	OLSR_nc_entry(){//: decoder_(p){}
+		decoder_ = NULL;
+	}
+	~OLSR_nc_entry(){
+		delete decoder_;
+	}
 	OLSR_nc_entry(OLSR_nc_entry * e){
 		decoder_ = e->decoder_;
 		total_pkts_ = e->total_pkts_;
