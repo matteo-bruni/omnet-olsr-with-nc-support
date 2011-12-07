@@ -796,15 +796,26 @@ OLSR::recv_olsr(cMessage* msg)
 	// altrimenti salta con un return
 	// se abbiamo già decodato tutto: return
 
+
+	/////////////////////////////////////////////////////
+	// recover msgs
+	// case non nc
 	assert(op->msgArraySize() >= 0 && op->msgArraySize() <= OLSR_MAX_MSGS);
 
 	int msg_size_ = (int) op->msgArraySize();
 	OLSR_msg* msg_array_ = new OLSR_msg[msg_size_];
-
-
-	for (int i = 0; i < (int) op->msgArraySize(); i++)
+	for (int i = 0; i < msg_size_; i++)
 	{
-		OLSR_msg& msg = op->msg(i);
+		msg_array_[i] = op->msg(i);
+	}
+	delete op;
+	/////////////////////////////////////////////////////
+	// no dependancy from op
+	////////////////////////////////////////////////////
+	for (int i = 0; i < msg_size_; i++)
+	{
+		//OLSR_msg& msg = op->msg(i);
+		OLSR_msg msg = msg_array_[i];
 
 		// If ttl is less than or equal to zero, or
 		// the receiver is the same as the originator,
@@ -861,7 +872,8 @@ OLSR::recv_olsr(cMessage* msg)
 		}
 
 	}
-	delete op;
+
+	delete [] msg_array_;
 
 	// After processing all OLSR messages, we must recompute routing table
 	rtable_computation();
