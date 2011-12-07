@@ -630,6 +630,101 @@ OLSR::check_packet(cPacket* msg,nsaddr_t &src_addr,int &index)
     delete msg;
     return op;
 }
+
+/////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+///
+/// \brief Check if packet is OLSR
+/// \param p received packet.
+///
+
+OLSR_pkt_coded *
+OLSR::check_packet_coded(cPacket* msg,nsaddr_t &src_addr,int &index)
+{
+    cPacket *msg_aux=NULL;
+    OLSR_pkt_coded *op;
+    index = getWlanInterfaceIndex(0);
+    if (isInMacLayer())
+    {
+        if (!dynamic_cast<OLSR_pkt_coded  *>(msg)) // Check if olsr packet
+        {
+            delete  msg;
+            return NULL;
+        }
+        else
+        {
+            op =  check_and_cast<OLSR_pkt_coded  *>(msg);
+            if (op->reduceFuncionality() && par("reduceFuncionality").boolValue())
+            {
+                delete msg;
+                return NULL;
+            }
+            Ieee802Ctrl* ctrl = check_and_cast<Ieee802Ctrl*>(msg->removeControlInfo());
+            src_addr = ctrl->getSrc();
+            delete ctrl;
+            return dynamic_cast<OLSR_pkt_coded  *>(msg);
+        }
+
+    }
+
+    if (dynamic_cast<UDPPacket *>(msg)) // Check is Udp packet
+    {
+        UDPPacket * udpPacket = check_and_cast<UDPPacket*>(msg);
+        if (udpPacket->getDestinationPort()!= RT_PORT) // Check port
+        {
+            delete  msg;
+            return NULL;
+        }
+        msg_aux = msg->decapsulate();
+        if (!dynamic_cast<OLSR_pkt_coded  *>(msg_aux)) // Check if olsr packet
+        {
+            delete  msg;
+            delete msg_aux;
+            return NULL;
+        }
+
+    }
+    else
+    {
+        delete msg;
+        return NULL;
+    }
+// Extract information and delete the cantainer without more use
+    op =  check_and_cast<OLSR_pkt_coded  *>(msg_aux);
+    if (op->reduceFuncionality() && par("reduceFuncionality"))
+    {
+        delete msg;
+        delete op;
+        return NULL;
+    }
+    IPControlInfo* controlInfo = check_and_cast<IPControlInfo*>(msg->removeControlInfo());
+    src_addr = controlInfo->getSrcAddr().getInt();
+    index = -1;
+    InterfaceEntry * ie;
+
+    for (int i=0; i<getNumWlanInterfaces(); i++)
+    {
+        ie = getWlanInterfaceEntry (i);
+        if (ie->getInterfaceId() == controlInfo->getInterfaceId())
+        {
+            index=getWlanInterfaceIndex(i);
+            break;
+        }
+    }
+
+    delete controlInfo;
+    delete msg;
+    return op;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+
 ///
 /// \brief Processes an incoming %OLSR packet following RFC 3626 specification.
 /// \param p received packet.
@@ -637,29 +732,53 @@ OLSR::check_packet(cPacket* msg,nsaddr_t &src_addr,int &index)
 void
 OLSR::recv_olsr(cMessage* msg)
 {
+	nsaddr_t src_addr;
+	int index;
 
-	// se NC usa OLSR_pkt_nc
+//	if (par("NetworkCoding").boolValue()){
+//
+//		OLSR_pkt_coded* op;
+//		// All routing messages are sent from and to port RT_PORT,
+//		// so we check it.
+//
+//		op = check_packet_coded(PK(msg),src_addr,index);
+//		if (op==NULL)
+//			return;
+//
+//		// If the packet contains no messages must be silently discarded.
+//		// There could exist a message with an empty body, so the size of
+//		// the packet would be pkt-hdr-size + msg-hdr-size.
+//
+//		if (op->getByteLength() < OLSR_PKT_HDR_SIZE + OLSR_MSG_HDR_SIZE)
+//		{
+//			delete op;
+//			return;
+//		}
+//
+//	} else {
 
-    OLSR_pkt* op;
-    nsaddr_t src_addr;
-    int index;
+		OLSR_pkt* op;
+		// All routing messages are sent from and to port RT_PORT,
+		// so we check it.
 
-    // All routing messages are sent from and to port RT_PORT,
-    // so we check it.
+		op = check_packet(PK(msg),src_addr,index);
+		if (op==NULL)
+			return;
 
-    op = check_packet(PK(msg),src_addr,index);
-    if (op==NULL)
-        return;
+		// If the packet contains no messages must be silently discarded.
+		// There could exist a message with an empty body, so the size of
+		// the packet would be pkt-hdr-size + msg-hdr-size.
 
-    // If the packet contains no messages must be silently discarded.
-    // There could exist a message with an empty body, so the size of
-    // the packet would be pkt-hdr-size + msg-hdr-size.
+		if (op->getByteLength() < OLSR_PKT_HDR_SIZE + OLSR_MSG_HDR_SIZE)
+		{
+			delete op;
+			return;
+		}
 
-    if (op->getByteLength() < OLSR_PKT_HDR_SIZE + OLSR_MSG_HDR_SIZE)
-    {
-        delete op;
-        return;
-    }
+
+	//}
+
+
     packetRecv++;
     // Process Olsr information
 
@@ -678,6 +797,11 @@ OLSR::recv_olsr(cMessage* msg)
 	// se abbiamo già decodato tutto: return
 
 	assert(op->msgArraySize() >= 0 && op->msgArraySize() <= OLSR_MAX_MSGS);
+
+	int msg_size_ = (int) op->msgArraySize();
+	OLSR_msg* msg_array_ = new OLSR_msg[msg_size_];
+
+
 	for (int i = 0; i < (int) op->msgArraySize(); i++)
 	{
 		OLSR_msg& msg = op->msg(i);
@@ -1672,8 +1796,8 @@ OLSR::send_pkt()
 			op->setTotal_pkt_num(num_pkts);
 
 			//////////////////////////////////////////////////////////////////
-			// TODO: decidere bytelenght
-			// op->setByteLength(op->getByteLength());          //+(*it).size());
+			// TODO: decidere bytelenght; aggiungo 100 altrimenti il recv me lo scarta
+			op->setByteLength(op->getByteLength()+100);          //+(*it).size());
 			//////////////////////////////////////////////////////////////////
 
 			packetSent++;

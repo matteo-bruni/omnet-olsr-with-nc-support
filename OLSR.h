@@ -442,6 +442,7 @@ class OLSR : public ManetRoutingBase
 
 
     virtual OLSR_pkt * check_packet(cPacket* ,nsaddr_t &,int &);
+    virtual OLSR_pkt_coded * check_packet_coded(cPacket* ,nsaddr_t &,int &);
 
     // PortClassifier*  dmux_;      ///< For passing packets up to agents.
     // Trace*       logtarget_; ///< For logging.
