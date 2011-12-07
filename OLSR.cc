@@ -32,6 +32,7 @@
 
 #include <math.h>
 #include <limits.h>
+#include <algorithm>
 
 #include "UDPPacket.h"
 #include "IPControlInfo.h"
@@ -43,6 +44,7 @@
 #include "OLSRpkt_m.h"
 #include "OLSR.h"
 #include "Ieee802Ctrl_m.h"
+
 
 
 
@@ -443,13 +445,22 @@ OLSR::initialize(int stage)
         midCounter=0;
         packetSent=0;
         packetRecv=0;
-        //
+
+		// Network Coding
+        random_seed =0;
+        generation=0;
+        lcomb_modifier =0;
+
         // Do some initializations
         willingness_=par("Willingness");
         hello_ival_=par("Hello_ival");
         tc_ival_=par("Tc_ival");
         mid_ival_=par("Mid_ival");
         use_mac_=par("use_mac");
+
+        // Network Coding
+        random_seed = par("random_seed");
+        lcomb_modifier = par("lcomb_modifier");
 
         NETRoutes.setName("NETRoutes");
 
@@ -458,7 +469,9 @@ OLSR::initialize(int stage)
         else
             EV << "reduceFuncionality false" << endl;
 
-
+        /*
+         * Network Coding
+         */
         if (par("NetworkCoding").boolValue()){
 			EV << "NetworkCoding true" << endl;
 			ff = new FiniteField(2, par("FiniteFieldPower"));
@@ -626,7 +639,6 @@ OLSR::recv_olsr(cMessage* msg)
 {
 
 	// se NC usa OLSR_pkt_nc
-	// TODO: check su ini
 
     OLSR_pkt* op;
     nsaddr_t src_addr;
@@ -649,79 +661,87 @@ OLSR::recv_olsr(cMessage* msg)
         return;
     }
     packetRecv++;
-// Process Olsr information
+    // Process Olsr information
 
+	if (par("NetworkCoding").boolValue()){
 
-    // inizia decodifica NC
-    // uso decoder e se riesce a decodificare un paccketto processa come sotto
-    // altrimenti aspetta
-    // se ho già decodificato tutti i pacchetti di una generazione scarta il
-    // pacchetto
+		// inizia decodifica NC
+		// uso decoder e se riesce a decodificare un pacchetto processa come sotto
+		// altrimenti aspetta
+		// se ho già decodificato tutti i pacchetti di una generazione scarta il
+		// pacchetto
 
-    assert(op->msgArraySize() >= 0 && op->msgArraySize() <= OLSR_MAX_MSGS);
-    for (int i = 0; i < (int) op->msgArraySize(); i++)
-    {
-        OLSR_msg& msg = op->msg(i);
+	}
 
-        // If ttl is less than or equal to zero, or
-        // the receiver is the same as the originator,
-        // the message must be silently dropped
-        // if (msg.ttl() <= 0 || msg.orig_addr() == ra_addr())
-        if (msg.ttl() <= 0 || isLocalAddress (msg.orig_addr()))
-            continue;
+	// se decodiamo qualcosa passa sotto
+	// altrimenti salta con un return
+	// se abbiamo già decodato tutto: return
 
-        // If the message has been processed it must not be
-        // processed again
-        bool do_forwarding = true;
-        OLSR_dup_tuple* duplicated = state_.find_dup_tuple(msg.orig_addr(), msg.msg_seq_num());
-        if (duplicated == NULL)
-        {
-            // Process the message according to its type
-            if (msg.msg_type() == OLSR_HELLO_MSG)
-                process_hello(msg, ra_addr(), src_addr,index);
-            else if (msg.msg_type() == OLSR_TC_MSG)
-                process_tc(msg, src_addr,index);
-            else if (msg.msg_type() == OLSR_MID_MSG)
-                process_mid(msg, src_addr,index);
-            else
-            {
-                debug("%f: Node %d can not process OLSR packet because does not "
-                      "implement OLSR type (%x)\n",
-                      CURRENT_TIME,
-                      OLSR::node_id(ra_addr()),
-                      msg.msg_type());
-            }
-        }
-        else
-        {
-            // If the message has been considered for forwarding, it should
-            // not be retransmitted again
-            for (addr_list_t::iterator it = duplicated->iface_list().begin();
-                    it != duplicated->iface_list().end();
-                    it++)
-            {
-                if (*it == ra_addr())
-                {
-                    do_forwarding = false;
-                    break;
-                }
-            }
-        }
+	assert(op->msgArraySize() >= 0 && op->msgArraySize() <= OLSR_MAX_MSGS);
+	for (int i = 0; i < (int) op->msgArraySize(); i++)
+	{
+		OLSR_msg& msg = op->msg(i);
 
-        if (do_forwarding)
-        {
-            // HELLO messages are never forwarded.
-            // TC and MID messages are forwarded using the default algorithm.
-            // Remaining messages are also forwarded using the default algorithm.
-            if (msg.msg_type() != OLSR_HELLO_MSG)
-                forward_default(msg, duplicated, ra_addr(),src_addr);
-        }
+		// If ttl is less than or equal to zero, or
+		// the receiver is the same as the originator,
+		// the message must be silently dropped
+		// if (msg.ttl() <= 0 || msg.orig_addr() == ra_addr())
+		if (msg.ttl() <= 0 || isLocalAddress (msg.orig_addr()))
+			continue;
 
-    }
-    delete op;
+		// If the message has been processed it must not be
+		// processed again
+		bool do_forwarding = true;
+		OLSR_dup_tuple* duplicated = state_.find_dup_tuple(msg.orig_addr(), msg.msg_seq_num());
+		if (duplicated == NULL)
+		{
+			// Process the message according to its type
+			if (msg.msg_type() == OLSR_HELLO_MSG)
+				process_hello(msg, ra_addr(), src_addr,index);
+			else if (msg.msg_type() == OLSR_TC_MSG)
+				process_tc(msg, src_addr,index);
+			else if (msg.msg_type() == OLSR_MID_MSG)
+				process_mid(msg, src_addr,index);
+			else
+			{
+				debug("%f: Node %d can not process OLSR packet because does not "
+					  "implement OLSR type (%x)\n",
+					  CURRENT_TIME,
+					  OLSR::node_id(ra_addr()),
+					  msg.msg_type());
+			}
+		}
+		else
+		{
+			// If the message has been considered for forwarding, it should
+			// not be retransmitted again
+			for (addr_list_t::iterator it = duplicated->iface_list().begin();
+					it != duplicated->iface_list().end();
+					it++)
+			{
+				if (*it == ra_addr())
+				{
+					do_forwarding = false;
+					break;
+				}
+			}
+		}
 
-    // After processing all OLSR messages, we must recompute routing table
-    rtable_computation();
+		if (do_forwarding)
+		{
+			// HELLO messages are never forwarded.
+			// TC and MID messages are forwarded using the default algorithm.
+			// Remaining messages are also forwarded using the default algorithm.
+			if (msg.msg_type() != OLSR_HELLO_MSG)
+				forward_default(msg, duplicated, ra_addr(),src_addr);
+		}
+
+	}
+	delete op;
+
+	// After processing all OLSR messages, we must recompute routing table
+	rtable_computation();
+
 }
 
 ///
@@ -1498,52 +1518,182 @@ OLSR::send_pkt()
 
 	if (par("NetworkCoding").boolValue()){
 
-		// TODO: crea numero generazione
+		// create the uncoded packets
+		std::vector<UncodedPacket*> inputPackets;
+		inputPackets.reserve(num_pkts);
+
+		// vector of the packet converted in bytes
+		std::vector<unsigned char*> payload_vector;
+		payload_vector.reserve(num_pkts);
+		// vector of the number of bytes per packet
+		std::vector<int> payload_vector_bytes;
+		payload_vector_bytes.reserve(num_pkts);
+
+		// array with msg per packet
+		short* msg_per_packet = new short[num_pkts];
+
+		EV << " Creating Input blocks ...";
+
+		// create array of bytes per packet
+		for (int i = 0; i < num_pkts; i++) {
+
+			// determine the number of olsr_msg to send in the 'i' packet
+			int msg_in_packet = (msgs_.size() < OLSR_MAX_MSGS) ? msgs_.size(): OLSR_MAX_MSGS;
+
+			msg_per_packet[i] = msg_in_packet;
+
+			OLSR_msg* msg_array_ = new OLSR_msg[msg_in_packet];
+
+			int i=0;
+			for (std::vector<OLSR_msg>::iterator it = msgs_.begin(); it != msgs_.end();)
+			{
+				msg_array_[i] = *it;
+				i++;
+				// remove from the list of msg to send
+				it = msgs_.erase(it);
+
+			}
+
+			// convert in unsigned char the payload
+			//unsigned char * payload_byte =
+			payload_vector.push_back(reinterpret_cast<unsigned char*>(msg_array_));
+			payload_vector_bytes.push_back(sizeof(OLSR_msg)*msg_in_packet);
+
+		}
+
+		// get max payload lenght
+		short max_lenght = *( std::max_element( payload_vector_bytes.begin(), payload_vector_bytes.end() ) );
+
+		// array with padding per packet
+		short* padding = new short [num_pkts];
+
+		/* prepare the input packets to be sent on the network */
+		std::vector<CodedPacket*> codewords;
+		codewords.reserve(num_pkts);
+
+		// create the actual unencoded packets
+		for (int i = 0; i < num_pkts; i++) {
+
+			if(payload_vector_bytes[i]<max_lenght){
+				// add padding
+				unsigned char* temp = new unsigned char[max_lenght];
+				memset(temp,0x00,sizeof(temp));
+				memcpy(temp, payload_vector[i], sizeof(unsigned char)*payload_vector_bytes[i]);
+				inputPackets.push_back(new UncodedPacket(i, temp, max_lenght));
+
+				// save the padding used
+				padding[i]=max_lenght - payload_vector_bytes[i];
+
+				delete [] temp;
+
+			} else {
+
+				padding[i] = 0;
+				inputPackets.push_back(new UncodedPacket(i, payload_vector[i], max_lenght));
+
+			}
 
 
+			delete [] payload_vector[i];
 
-		// devo inviare num_pkts in rete
-		// devo creare num_pkts unencoded packets
-		// poi creto num_pkts + num_pkts/2 pacchetti networkcoded e poi invio
+			// ff is the finite field created in initialize()
+			codewords.push_back(new CodedPacket( inputPackets[i], num_pkts, ff));
 
-		for (int i = 0; i < num_pkts; i++)
-		{
-			OLSR_pkt* op        = new OLSR_pkt;
+			delete inputPackets[i];
+
+		}
+
+		/*
+		 * Create a set of linear combinations that simulate
+		 * the output of the network
+		 */
+
+		// linear combination to send
+		int lin_comb_num = num_pkts + int(num_pkts/lcomb_modifier);
+
+		std::vector<CodedPacket*> networkOutput;
+		networkOutput.reserve(lin_comb_num);
+
+
+		// generate random numbers to use in lin comb
+		srand(random_seed);
+
+
+		for ( int i = 0 ; i < lin_comb_num ; i++) {
+			networkOutput[i] = CodedPacket::createEmptyCodedPacketPtr(num_pkts, max_lenght, ff);
+
+			for ( int j = 0 ; j < num_pkts ; j++) {
+				int x = rand()%ff->getCardinality();
+				CodedPacket* copy = codewords[j]->scalarMultiply(x);
+				networkOutput[i]->addInPlace(copy);
+				delete copy;
+			}
+
+
+			/*
+			 * 	send the packet
+			 */
+			OLSR_pkt_coded* op = new OLSR_pkt_coded;
 			op->setName("OLSR Pkt");
-
 			op->setByteLength( OLSR_PKT_HDR_SIZE );
 			op->setPkt_seq_num( pkt_seq());
 			op->setReduceFuncionality(par("reduceFuncionality").boolValue());
 
-			// op appena creato è il contenitore olsr
 
-			int j = 0;
-			for (std::vector<OLSR_msg>::iterator it = msgs_.begin(); it != msgs_.end();)
-			{
-				// invio solo i primi olsr_max_msg che posso
-				// riunire
-				if (j == OLSR_MAX_MSGS)
-					break;
-
-				// +1 elemento
-				op->setMsgArraySize(j+1);
-				// inserisco il messaggio: in posizione j++, messaggio *it cioè un OLSR_msg
-				op->setMsg(j++,*it);
-				// quanti byte aggiungo
-				op->setByteLength(op->getByteLength()+(*it).size());
-
-				// rimuovo dalla lista dei pacchetti da mettere
-				it = msgs_.erase(it);
+			// set the coding vector
+			int cv_size_ = ff->bytesLength(networkOutput[i]->getCodingVector()->getLength());
+			unsigned char* cv_bytes_ = ff->vectorToBytes(networkOutput[i]->getCodingVector());
+			op->setCoding_vectorArraySize(cv_size_);
+			for(int k=0;k<cv_size_;k++){
+				op->setCoding_vector(k, cv_bytes_[k] );
 			}
-			// a questo punto dentro op ho messo il msg *OLSR_msg che è un array di dimensione
-			// bytelenght
+			delete [] cv_bytes_;
 
-			// sto per inviare:
-			// per NC prendo il payload
+			// set the payload vector
+			int pv_size_ = ff->bytesLength(networkOutput[i]->getPayloadVector()->getLength());
+			unsigned char* pv_bytes_ = ff->vectorToBytes(networkOutput[i]->getPayloadVector());
+			op->setCoding_vectorArraySize(pv_size_);
+			for(int k=0;k<pv_size_;k++){
+				op->setCoding_vector(k, pv_bytes_[k] );
+			}
+
+			delete [] pv_bytes_;
+
+			op->setPaddingArraySize(num_pkts);
+			op->setMsg_per_packetArraySize(num_pkts);
+			for(int k=0; k<num_pkts;k++){
+				op->setPadding(k, padding[k]);
+				op->setMsg_per_packet(k, msg_per_packet[k]);
+			}
+			delete [] padding;
+			delete [] msg_per_packet;
+
+			op->setGeneration(generation);
+			op->setTotal_pkt_num(num_pkts);
+
+			//////////////////////////////////////////////////////////////////
+			// TODO: decidere bytelenght
+			// op->setByteLength(op->getByteLength());          //+(*it).size());
+			//////////////////////////////////////////////////////////////////
+
 			packetSent++;
 			sendToIp (op, RT_PORT,destAdd, RT_PORT,IP_DEF_TTL,(nsaddr_t)0);
+
+
+		}
+		/////////////////////////////////////////////////////
+
+		for ( int i = 0 ; i < lin_comb_num ; i++) {
+			if (i<num_pkts){
+				codewords[i];
+			}
+			networkOutput[i];
 		}
 
+		///////////////////////////////////////////////////
+
+		// increase generation
+		generation = (generation+1) % 60000;
 
 
 	}

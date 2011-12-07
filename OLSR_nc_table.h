@@ -26,12 +26,13 @@
 #include <omnetpp.h>
 #include <map>
 
-///
-/// \brief Defines nctable_t as a map of OLSR_nc_entry, whose key is the packets generation.
-///
-/// The network coding table is thus defined as pairs: [generation, entry]. Each element
-/// of the pair can be accesed via "first" and "second" members.
-///
+
+/*
+ * \brief Defines nctable_t as a map of OLSR_nc_entry, whose key is the packets generation.
+ *
+ * The network coding table is thus defined as pairs: [generation, entry]. Each element
+ * of the pair can be accesed via "first" and "second" members.
+ */
 typedef std::map<int, OLSR_nc_entry*> nctable_t;
 
 /*

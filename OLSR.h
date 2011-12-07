@@ -419,9 +419,17 @@ class OLSR : public ManetRoutingBase
     int     use_mac_;
     bool useIndex;
 
+    /*
+     * Network Coding
+     */
     // Network coding finite field
     FiniteField* ff;
-
+    // Network coding table
+    OLSR_nc_table nc_table_;
+    // generation number
+    int generation;
+    int random_seed;
+    double lcomb_modifier;
 
     /// Address of the routing agent.
     nsaddr_t ra_addr_;
