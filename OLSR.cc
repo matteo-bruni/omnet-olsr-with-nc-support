@@ -735,27 +735,145 @@ OLSR::recv_olsr(cMessage* msg)
 	nsaddr_t src_addr;
 	int index;
 
-//	if (par("NetworkCoding").boolValue()){
-//
-//		OLSR_pkt_coded* op;
-//		// All routing messages are sent from and to port RT_PORT,
-//		// so we check it.
-//
-//		op = check_packet_coded(PK(msg),src_addr,index);
-//		if (op==NULL)
-//			return;
-//
-//		// If the packet contains no messages must be silently discarded.
-//		// There could exist a message with an empty body, so the size of
-//		// the packet would be pkt-hdr-size + msg-hdr-size.
-//
-//		if (op->getByteLength() < OLSR_PKT_HDR_SIZE + OLSR_MSG_HDR_SIZE)
-//		{
-//			delete op;
-//			return;
-//		}
-//
-//	} else {
+	OLSR_msg* msg_array_;	// array of messages to process
+	int msg_size_;
+
+
+	if (par("NetworkCoding").boolValue()){
+
+		EV << "Recived Packet Coded! ";
+
+		OLSR_pkt_coded* op;
+		// All routing messages are sent from and to port RT_PORT,
+		// so we check it.
+
+		op = check_packet_coded(PK(msg),src_addr,index);
+		if (op==NULL)
+			return;
+
+		// If the packet contains no messages must be silently discarded.
+		// There could exist a message with an empty body, so the size of
+		// the packet would be pkt-hdr-size + msg-hdr-size.
+
+		if (op->getByteLength() < OLSR_PKT_HDR_SIZE + OLSR_MSG_HDR_SIZE)
+		{
+			delete op;
+			return;
+		}
+
+		// recover the vectors in array form
+
+		unsigned char* cv_ = new unsigned char[op->coding_vectorArraySize()];
+		unsigned char* pv_ = new unsigned char[op->payloadArraySize()];
+		for( int i=0; i<op->coding_vectorArraySize();i ++){
+			cv_[i] = op->coding_vector(i);
+		}
+		for (int i=0; i<op->payloadArraySize(); i++){
+			pv_[i] = op->payload(i);
+		}
+
+		// create the relative Coded Packet
+
+		// this ptr be deleted when the codedpacket will be deleted
+		FiniteFieldVector* ff_cv_ = ff->byteToVector(cv_, op->coding_vectorArraySize());
+		FiniteFieldVector* ff_pv_ = ff->byteToVector(pv_, op->payloadArraySize());
+
+		// byte vectors no longer needed
+		delete [] cv_;
+		delete [] pv_;
+
+		CodedPacket* coded_packet_ = new CodedPacket(ff_cv_, ff_pv_);
+
+		// use the generation to find its decoder, if it's new create nc_table entry
+		OLSR_nc_entry* entry = nc_table_.lookup(op->generation());
+
+		if (entry == NULL){
+			// create new decoder
+			entry = new OLSR_nc_entry();
+			// create the decoder
+			entry->decoder_ = new PacketDecoder(ff,op->coding_vectorArraySize(), op->payloadArraySize());
+			entry->total_pkts_ = op->total_pkt_num();
+
+			// insert the entry in the table
+			nc_table_.add_entry(op->generation(), entry);
+		} else {
+			// if we have already decoded this generation
+			if(entry->decoded_pkts_ == entry->total_pkts_){
+				return;
+			}
+		}
+
+		// add the packet recived to the decoder
+		std::vector<UncodedPacket*> uncoded_pkts_ = entry->decoder_->addPacket(coded_packet_);
+
+		// if size = 0 we haven't decoded anything
+		if (uncoded_pkts_.size() == 0){
+			return;
+		}
+
+		// how many msgs have we decoded
+		for (unsigned int i=0; i<uncoded_pkts_.size(); i++) {
+			msg_size_ = msg_size_ + op->msg_per_packet(uncoded_pkts_[i]->getId());
+		}
+		msg_array_ = new OLSR_msg[msg_size_];
+		int msg_offset = 0;
+
+
+		// recover the bytes for each msg removing the padding
+		for (unsigned int i=0; i<uncoded_pkts_.size(); i++) {
+
+			entry->decoded_pkts_ = entry->decoded_pkts_+1;
+
+			// remove padding
+			int temp_lenght = uncoded_pkts_[i]->getPayloadLength() - op->padding(uncoded_pkts_[i]->getId());
+			unsigned char* temp = new unsigned char[temp_lenght];
+			memset(temp,0x00,sizeof(temp));
+			memcpy(temp, uncoded_pkts_[i]->getPayload(), sizeof(unsigned char)*temp_lenght);
+
+			// recover the array of OLSR_msg[]
+			OLSR_msg* back = reinterpret_cast<OLSR_msg *>(temp);
+			int back_len = op->msg_per_packet(uncoded_pkts_[i]->getId() );
+			for (int j=0; j<back_len; j++ ){
+				msg_array_[msg_offset] = back[j];
+				msg_offset++;
+			}
+
+			delete [] back;
+			delete [] temp;
+
+
+		}
+
+
+		for (int j=0; j<uncoded_pkts_.size(); j++) {
+			// clear memory from temp pointers
+			delete uncoded_pkts_[j];
+
+		}
+
+
+
+
+		// rebuild codedpackets from bytes
+
+
+
+
+		// inizia decodifica NC
+		// uso decoder e se riesce a decodificare un pacchetto processa come sotto
+		// altrimenti aspetta
+		// se ho già decodificato tutti i pacchetti di una generazione scarta il
+		// pacchetto
+
+		// se decodiamo qualcosa passa sotto
+		// altrimenti salta con un return
+		// se abbiamo già decodato tutto: return
+
+
+		delete op;
+
+
+	} else {
 
 		OLSR_pkt* op;
 		// All routing messages are sent from and to port RT_PORT,
@@ -774,44 +892,25 @@ OLSR::recv_olsr(cMessage* msg)
 			delete op;
 			return;
 		}
+		assert(op->msgArraySize() >= 0 && op->msgArraySize() <= OLSR_MAX_MSGS);
 
+		// array of messages that will be processed
+		msg_size_ = (int) op->msgArraySize();
+		msg_array_ = new OLSR_msg[msg_size_];
+		for (int i = 0; i < msg_size_; i++)
+		{
+			msg_array_[i] = op->msg(i);
+		}
+		delete op;
 
-	//}
+	}
 
 
     packetRecv++;
     // Process Olsr information
 
-	if (par("NetworkCoding").boolValue()){
 
-		// inizia decodifica NC
-		// uso decoder e se riesce a decodificare un pacchetto processa come sotto
-		// altrimenti aspetta
-		// se ho già decodificato tutti i pacchetti di una generazione scarta il
-		// pacchetto
-
-	}
-
-	// se decodiamo qualcosa passa sotto
-	// altrimenti salta con un return
-	// se abbiamo già decodato tutto: return
-
-
-	/////////////////////////////////////////////////////
-	// recover msgs
-	// case non nc
-	assert(op->msgArraySize() >= 0 && op->msgArraySize() <= OLSR_MAX_MSGS);
-
-	int msg_size_ = (int) op->msgArraySize();
-	OLSR_msg* msg_array_ = new OLSR_msg[msg_size_];
-	for (int i = 0; i < msg_size_; i++)
-	{
-		msg_array_[i] = op->msg(i);
-	}
-	delete op;
-	/////////////////////////////////////////////////////
-	// no dependancy from op
-	////////////////////////////////////////////////////
+	// packet type agnostic
 	for (int i = 0; i < msg_size_; i++)
 	{
 		//OLSR_msg& msg = op->msg(i);
@@ -1650,7 +1749,7 @@ OLSR::send_pkt()
 
 	Uint128 destAdd = IPAddress::ALLONES_ADDRESS;
 
-
+	EV << "send packet ";
 
 	if (par("NetworkCoding").boolValue()){
 
@@ -1812,10 +1911,11 @@ OLSR::send_pkt()
 			op->setByteLength(op->getByteLength()+100);          //+(*it).size());
 			//////////////////////////////////////////////////////////////////
 
+			EV <<"Sending Packet Routed! ";
 			packetSent++;
 			sendToIp (op, RT_PORT,destAdd, RT_PORT,IP_DEF_TTL,(nsaddr_t)0);
 
-
+			EV <<"Packed Sended";
 		}
 		/////////////////////////////////////////////////////
 

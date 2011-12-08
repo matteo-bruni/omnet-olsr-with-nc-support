@@ -67,6 +67,8 @@ typedef struct OLSR_nc_entry : public cObject
 
 	OLSR_nc_entry(){//: decoder_(p){}
 		decoder_ = NULL;
+		total_pkts_ = 0;
+		decoded_pkts_ = 0;
 	}
 	~OLSR_nc_entry(){
 		delete decoder_;
