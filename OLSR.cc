@@ -73,6 +73,7 @@ Define_Module(OLSR);
 
 void OLSR_Timer::removeTimer()
 {
+
     removeQueueTimer();
 }
 
@@ -422,9 +423,13 @@ OLSR_IfaceAssocTupleTimer::~OLSR_IfaceAssocTupleTimer ()
 void
 OLSR_MsgTimer::expire()
 {
+	EV << "send packet" <<endl;
     agent_->send_pkt();
+    EV << " remove timer" <<endl;
     removeTimer();
+    EV << "delete" <<endl;
     delete this;
+    EV << "deletato" <<endl;
 }
 
 
@@ -445,6 +450,7 @@ OLSR::initialize(int stage)
         midCounter=0;
         packetSent=0;
         packetRecv=0;
+        ff = 0;
 
 		// Network Coding
         random_seed =0;
@@ -526,23 +532,34 @@ OLSR::initialize(int stage)
 
 void OLSR::handleMessage (cMessage *msg)
 {
+	EV << "handle message" <<endl;
+
     if (msg->isSelfMessage())
     {
+    	EV << "msg isselfmessage" <<endl;
         //OLSR_Timer *timer=dynamic_cast<OLSR_Timer*>(msg);
         while (timerQueuePtr->begin()->first<=simTime())
         {
             OLSR_Timer *timer= timerQueuePtr->begin()->second;
-            if (timer==NULL)
+            if (timer==NULL){
+            	EV << "timer null" <<endl;
                 opp_error ("timer ower is bad");
-            else
+            } else
             {
+            	EV << "erase timer " <<endl;
                 timerQueuePtr->erase(timerQueuePtr->begin());
+                EV << "call expire" <<endl;
                 timer->expire();
+                EV << "timer expire called" <<endl;
             }
         }
     }
-    else
-        recv_olsr(msg);
+    else{
+		EV << "call rec_olsr" <<endl;
+    	recv_olsr(msg);
+    }
+
+    EV << "call schedule next event"<< endl;
 
     scheduleNextEvent();
 }
@@ -555,6 +572,8 @@ void OLSR::handleMessage (cMessage *msg)
 OLSR_pkt *
 OLSR::check_packet(cPacket* msg,nsaddr_t &src_addr,int &index)
 {
+	EV << "check packet" <<endl;
+
     cPacket *msg_aux=NULL;
     OLSR_pkt *op;
     index = getWlanInterfaceIndex(0);
@@ -644,6 +663,8 @@ OLSR::check_packet(cPacket* msg,nsaddr_t &src_addr,int &index)
 OLSR_pkt_coded *
 OLSR::check_packet_coded(cPacket* msg,nsaddr_t &src_addr,int &index)
 {
+	EV << "check packet coded" <<endl;
+
     cPacket *msg_aux=NULL;
     OLSR_pkt_coded *op;
     index = getWlanInterfaceIndex(0);
@@ -732,11 +753,13 @@ OLSR::check_packet_coded(cPacket* msg,nsaddr_t &src_addr,int &index)
 void
 OLSR::recv_olsr(cMessage* msg)
 {
+	EV << "recv_olsr" <<endl;
+
 	nsaddr_t src_addr;
 	int index;
 
 	OLSR_msg* msg_array_;	// array of messages to process
-	int msg_size_;
+	int msg_size_ = 0;
 
 
 	if (par("NetworkCoding").boolValue()){
@@ -765,18 +788,26 @@ OLSR::recv_olsr(cMessage* msg)
 
 		unsigned char* cv_ = new unsigned char[op->coding_vectorArraySize()];
 		unsigned char* pv_ = new unsigned char[op->payloadArraySize()];
-		for( int i=0; i<op->coding_vectorArraySize();i ++){
+		for(unsigned int i=0; i<op->coding_vectorArraySize();i ++){
 			cv_[i] = op->coding_vector(i);
 		}
-		for (int i=0; i<op->payloadArraySize(); i++){
+		for (unsigned int i=0; i<op->payloadArraySize(); i++){
 			pv_[i] = op->payload(i);
 		}
 
 		// create the relative Coded Packet
 
 		// this ptr be deleted when the codedpacket will be deleted
-		FiniteFieldVector* ff_cv_ = ff->byteToVector(cv_, op->coding_vectorArraySize());
+		//FiniteFieldVector* ff_cv_ = ff->byteToVector(cv_, op->coding_vectorArraySize());
+		FiniteFieldVector* ff_cv_ = new FiniteFieldVector(op->coding_vectorArraySize(), ff);
+		for(unsigned int i = 0; i<op->coding_vectorArraySize();i++){
+			ff_cv_->setCoordinate(i,op->coding_vector(i));
+		}
+
+
 		FiniteFieldVector* ff_pv_ = ff->byteToVector(pv_, op->payloadArraySize());
+
+		int vc_a_s = ff_cv_->getLength();
 
 		// byte vectors no longer needed
 		delete [] cv_;
@@ -791,6 +822,12 @@ OLSR::recv_olsr(cMessage* msg)
 			// create new decoder
 			entry = new OLSR_nc_entry();
 			// create the decoder
+			// debug info
+			int c_v_a_s = op->coding_vectorArraySize();
+			int p_a_s = op->payloadArraySize();
+			///////////////////
+
+			EV << "creating decoder" <<endl;
 			entry->decoder_ = new PacketDecoder(ff,op->coding_vectorArraySize(), op->payloadArraySize());
 			entry->total_pkts_ = op->total_pkt_num();
 
@@ -803,14 +840,17 @@ OLSR::recv_olsr(cMessage* msg)
 			}
 		}
 
+		EV << "add to decoder"<<endl;
 		// add the packet recived to the decoder
 		std::vector<UncodedPacket*> uncoded_pkts_ = entry->decoder_->addPacket(coded_packet_);
 
 		// if size = 0 we haven't decoded anything
 		if (uncoded_pkts_.size() == 0){
+			EV << "NC PacketDecoder: can't decode. need more packets" <<endl;
 			return;
 		}
 
+		msg_size_ = 0;
 		// how many msgs have we decoded
 		for (unsigned int i=0; i<uncoded_pkts_.size(); i++) {
 			msg_size_ = msg_size_ + op->msg_per_packet(uncoded_pkts_[i]->getId());
@@ -838,14 +878,15 @@ OLSR::recv_olsr(cMessage* msg)
 				msg_offset++;
 			}
 
-			delete [] back;
-			delete [] temp;
+			// TODO: check
+			//delete [] back;
+			//delete [] temp;
 
 
 		}
 
 
-		for (int j=0; j<uncoded_pkts_.size(); j++) {
+		for (unsigned int j=0; j<uncoded_pkts_.size(); j++) {
 			// clear memory from temp pointers
 			delete uncoded_pkts_[j];
 
@@ -1722,6 +1763,7 @@ void
 OLSR::enque_msg(OLSR_msg& msg, double delay)
 {
     assert(delay >= 0);
+	EV << "enqueue_msg" <<endl;
 
     msgs_.push_back(msg);
     OLSR_MsgTimer* timer = new OLSR_MsgTimer(this);
@@ -1739,13 +1781,23 @@ void
 OLSR::send_pkt()
 {
 
+	EV << "Send Packet" <<endl;
+
 	int num_msgs = msgs_.size();
-	if (num_msgs == 0)
+	EV << "check msg num" <<endl;
+	if (num_msgs == 0){
+		EV << "0 msg" <<endl;
 		return;
 
+	}
+
+
+	EV << "calcolates number of needed packets" <<endl;
 	// Calculates the number of needed packets
 	int num_pkts = (num_msgs%OLSR_MAX_MSGS == 0) ? num_msgs/OLSR_MAX_MSGS :
 				   (num_msgs/OLSR_MAX_MSGS + 1);
+
+	EV << "check dest address" <<endl;
 
 	Uint128 destAdd = IPAddress::ALLONES_ADDRESS;
 
@@ -1791,14 +1843,20 @@ OLSR::send_pkt()
 
 			// convert in unsigned char the payload
 			//unsigned char * payload_byte =
-			payload_vector.push_back(reinterpret_cast<unsigned char*>(msg_array_));
+			unsigned char* byte_conversion = new unsigned char[sizeof(OLSR_msg)*msg_in_packet];
+			byte_conversion = reinterpret_cast<unsigned char*>(msg_array_);
+			payload_vector.push_back(byte_conversion);
+
+			int size_vector = sizeof(OLSR_msg)*msg_in_packet;
+
 			payload_vector_bytes.push_back(sizeof(OLSR_msg)*msg_in_packet);
 
 		}
 
 		// get max payload lenght
-		short max_lenght = *( std::max_element( payload_vector_bytes.begin(), payload_vector_bytes.end() ) );
+		int max_lenght = *( std::max_element( payload_vector_bytes.begin(), payload_vector_bytes.end() ) );
 
+		EV << "max_lenght =" <<max_lenght <<endl;
 		// array with padding per packet
 		short* padding = new short [num_pkts];
 
@@ -1829,7 +1887,6 @@ OLSR::send_pkt()
 			}
 
 
-			delete [] payload_vector[i];
 
 			// ff is the finite field created in initialize()
 			codewords.push_back(new CodedPacket( inputPackets[i], num_pkts, ff));
@@ -1875,21 +1932,31 @@ OLSR::send_pkt()
 			op->setReduceFuncionality(par("reduceFuncionality").boolValue());
 
 
+//			// set the coding vector
+//			int cv_size_ = ff->bytesLength(networkOutput[i]->getCodingVector()->getLength());
+//			unsigned char* cv_bytes_ = ff->vectorToBytes(networkOutput[i]->getCodingVector());
+//			op->setCoding_vectorArraySize(cv_size_);
+//			for(int k=0;k<cv_size_;k++){
+//				op->setCoding_vector(k, cv_bytes_[k] );
+//			}
+//			delete [] cv_bytes_;
+
 			// set the coding vector
 			int cv_size_ = ff->bytesLength(networkOutput[i]->getCodingVector()->getLength());
-			unsigned char* cv_bytes_ = ff->vectorToBytes(networkOutput[i]->getCodingVector());
+			//unsigned char* cv_bytes_ = ff->vectorToBytes(networkOutput[i]->getCodingVector());
 			op->setCoding_vectorArraySize(cv_size_);
 			for(int k=0;k<cv_size_;k++){
-				op->setCoding_vector(k, cv_bytes_[k] );
+				op->setCoding_vector(k, networkOutput[i]->getCodingVector()->getCoordinate(k));
 			}
-			delete [] cv_bytes_;
+
+
 
 			// set the payload vector
 			int pv_size_ = ff->bytesLength(networkOutput[i]->getPayloadVector()->getLength());
 			unsigned char* pv_bytes_ = ff->vectorToBytes(networkOutput[i]->getPayloadVector());
-			op->setCoding_vectorArraySize(pv_size_);
+			op->setPayloadArraySize(pv_size_);
 			for(int k=0;k<pv_size_;k++){
-				op->setCoding_vector(k, pv_bytes_[k] );
+				op->setPayload(k, pv_bytes_[k] );
 			}
 
 			delete [] pv_bytes_;
@@ -1921,9 +1988,11 @@ OLSR::send_pkt()
 
 		for ( int i = 0 ; i < lin_comb_num ; i++) {
 			if (i<num_pkts){
-				codewords[i];
+				delete codewords[i];
+				//if (payload_vector[i])
+					//delete [] payload_vector[i];
 			}
-			networkOutput[i];
+			delete networkOutput[i];
 		}
 
 		///////////////////////////////////////////////////
@@ -3045,12 +3114,16 @@ bool OLSR::getDestAddress(cPacket *msg,Uint128 &dest)
 
 void OLSR::scheduleNextEvent()
 {
+	EV << "schedule next event"<< endl;
+
     TimerQueue::iterator e = timerQueuePtr->begin();
     if (timerMessage->isScheduled())
     {
+    	EV << "messaggio is scheduled"<< endl;
         if (e->first <timerMessage->getArrivalTime())
         {
             cancelEvent(timerMessage);
+            EV << "chiamo schedule at"<< endl;
             scheduleAt(e->first,timerMessage);
         }
         else if (e->first>timerMessage->getArrivalTime())
@@ -3058,6 +3131,7 @@ void OLSR::scheduleNextEvent()
     }
     else
     {
+    	EV << " messaggio non scheduled."<< endl;
         scheduleAt(e->first,timerMessage);
     }
 }

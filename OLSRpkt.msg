@@ -434,7 +434,8 @@ packet OLSR_pkt_coded
     double send_time;           /// Packet sending timestamp
     
     /// nc section
-    unsigned char coding_vector[];
+    //unsigned char coding_vector[];
+    int coding_vector[];
     unsigned char payload[];
     int generation;
     short total_pkt_num;		// number of message coded inside the payload
