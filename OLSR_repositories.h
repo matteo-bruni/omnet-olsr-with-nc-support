@@ -71,7 +71,8 @@ typedef struct OLSR_nc_entry : public cObject
 		decoded_pkts_ = 0;
 	}
 	~OLSR_nc_entry(){
-		delete decoder_;
+		if (decoder_)
+			delete decoder_;
 	}
 	OLSR_nc_entry(OLSR_nc_entry * e){
 		decoder_ = e->decoder_;

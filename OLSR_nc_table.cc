@@ -57,8 +57,16 @@ void OLSR_nc_table::clear()
  */
 void OLSR_nc_table::rm_entry(int gen)
 {
+	//printf("\n1n#############MORTEEE\n");
     // Remove the pair whose key is gen
+//    nctable_t::iterator it = nct_.find(gen);
+//    if (it == nct_.end())
+//        return;
+//
+//    delete (*it).second;
     nct_.erase(gen);
+    //printf("\n###########MORTEEE2\n");
+
 }
 
 

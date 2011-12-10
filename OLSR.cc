@@ -470,6 +470,7 @@ OLSR::initialize(int stage)
 
         NETRoutes.setName("NETRoutes");
 
+
         if (par("reduceFuncionality"))
             EV << "reduceFuncionality true" << endl;
         else
@@ -807,8 +808,6 @@ OLSR::recv_olsr(cMessage* msg)
 
 		FiniteFieldVector* ff_pv_ = ff->byteToVector(pv_, op->payloadArraySize());
 
-		int vc_a_s = ff_cv_->getLength();
-
 		// byte vectors no longer needed
 		delete [] cv_;
 		delete [] pv_;
@@ -822,10 +821,6 @@ OLSR::recv_olsr(cMessage* msg)
 			// create new decoder
 			entry = new OLSR_nc_entry();
 			// create the decoder
-			// debug info
-			int c_v_a_s = op->coding_vectorArraySize();
-			int p_a_s = op->payloadArraySize();
-			///////////////////
 
 			EV << "creating decoder" <<endl;
 			entry->decoder_ = new PacketDecoder(ff,op->coding_vectorArraySize(), op->payloadArraySize());
@@ -834,19 +829,33 @@ OLSR::recv_olsr(cMessage* msg)
 			// insert the entry in the table
 			nc_table_.add_entry(op->generation(), entry);
 		} else {
+			// if we have received al possible messages remove table entry and
+			// return
+			int lin_comb = entry->total_pkts_ + int(entry->total_pkts_/lcomb_modifier);
+			if(entry->decoded_pkts_ == lin_comb){
+				//printf("rimuovi");
+				//nc_table_.rm_entry(op->generation());
+				//printf("rimosso-");
+				delete op;
+				return;
+			}
 			// if we have already decoded this generation
 			if(entry->decoded_pkts_ == entry->total_pkts_){
+				delete op;
 				return;
 			}
 		}
-
+		//printf("\n MORTEEE #############################");
 		EV << "add to decoder"<<endl;
 		// add the packet recived to the decoder
 		std::vector<UncodedPacket*> uncoded_pkts_ = entry->decoder_->addPacket(coded_packet_);
 
+	    //PKTRecDecoded.record(uncoded_pkts_.size());
+
 		// if size = 0 we haven't decoded anything
 		if (uncoded_pkts_.size() == 0){
 			EV << "NC PacketDecoder: can't decode. need more packets" <<endl;
+			delete op;
 			return;
 		}
 
@@ -885,6 +894,7 @@ OLSR::recv_olsr(cMessage* msg)
 
 		}
 
+		//printf("\n MORTEEE22222222 #############################");
 
 		for (unsigned int j=0; j<uncoded_pkts_.size(); j++) {
 			// clear memory from temp pointers
@@ -892,24 +902,7 @@ OLSR::recv_olsr(cMessage* msg)
 
 		}
 
-
-
-
-		// rebuild codedpackets from bytes
-
-
-
-
-		// inizia decodifica NC
-		// uso decoder e se riesce a decodificare un pacchetto processa come sotto
-		// altrimenti aspetta
-		// se ho già decodificato tutti i pacchetti di una generazione scarta il
-		// pacchetto
-
-		// se decodiamo qualcosa passa sotto
-		// altrimenti salta con un return
-		// se abbiamo già decodato tutto: return
-
+		//printf("\n MORTEEE4444444444 #############################");
 
 		delete op;
 
@@ -945,7 +938,7 @@ OLSR::recv_olsr(cMessage* msg)
 		delete op;
 
 	}
-
+	//printf("\n MORTEEE333 #############################");
 
     packetRecv++;
     // Process Olsr information
@@ -1784,6 +1777,9 @@ OLSR::send_pkt()
 	EV << "Send Packet" <<endl;
 
 	int num_msgs = msgs_.size();
+	if (num_msgs>1)
+		printf("\nNUMERO messaggi: %u\n", num_msgs);
+
 	EV << "check msg num" <<endl;
 	if (num_msgs == 0){
 		EV << "0 msg" <<endl;
@@ -1792,10 +1788,14 @@ OLSR::send_pkt()
 	}
 
 
+
 	EV << "calcolates number of needed packets" <<endl;
 	// Calculates the number of needed packets
 	int num_pkts = (num_msgs%OLSR_MAX_MSGS == 0) ? num_msgs/OLSR_MAX_MSGS :
 				   (num_msgs/OLSR_MAX_MSGS + 1);
+
+	if(num_pkts>1)
+		printf("\nNUMERO PACCHETTI: %u\n", num_pkts);
 
 	EV << "check dest address" <<endl;
 
@@ -1842,12 +1842,16 @@ OLSR::send_pkt()
 			}
 
 			// convert in unsigned char the payload
-			//unsigned char * payload_byte =
+			//unsigned char * payload_byte =reinterpret_cast<unsigned char*>(msg_array_);
 			unsigned char* byte_conversion = new unsigned char[sizeof(OLSR_msg)*msg_in_packet];
-			byte_conversion = reinterpret_cast<unsigned char*>(msg_array_);
+			memcpy(byte_conversion, reinterpret_cast<unsigned char*>(msg_array_), sizeof(OLSR_msg)*msg_in_packet);
+
+			delete [] msg_array_;
+			//byte_conversion = reinterpret_cast<unsigned char*>(msg_array_);
+
 			payload_vector.push_back(byte_conversion);
 
-			int size_vector = sizeof(OLSR_msg)*msg_in_packet;
+			//int size_vector = sizeof(OLSR_msg)*msg_in_packet;
 
 			payload_vector_bytes.push_back(sizeof(OLSR_msg)*msg_in_packet);
 
@@ -1877,7 +1881,10 @@ OLSR::send_pkt()
 				// save the padding used
 				padding[i]=max_lenght - payload_vector_bytes[i];
 
+
+
 				delete [] temp;
+
 
 			} else {
 
@@ -1885,8 +1892,7 @@ OLSR::send_pkt()
 				inputPackets.push_back(new UncodedPacket(i, payload_vector[i], max_lenght));
 
 			}
-
-
+			delete [] payload_vector[i];
 
 			// ff is the finite field created in initialize()
 			codewords.push_back(new CodedPacket( inputPackets[i], num_pkts, ff));
@@ -1989,10 +1995,9 @@ OLSR::send_pkt()
 		for ( int i = 0 ; i < lin_comb_num ; i++) {
 			if (i<num_pkts){
 				delete codewords[i];
-				//if (payload_vector[i])
-					//delete [] payload_vector[i];
 			}
-			delete networkOutput[i];
+			if (networkOutput[i])
+				delete networkOutput[i];
 		}
 
 		///////////////////////////////////////////////////
@@ -2984,6 +2989,7 @@ void OLSR::finish()
 OLSR::~OLSR()
 {
     rtable_.clear();
+    nc_table_.clear();
     msgs_.clear();
     if (state_ptr)
     {

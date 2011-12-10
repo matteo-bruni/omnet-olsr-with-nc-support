@@ -434,7 +434,13 @@ class OLSR : public ManetRoutingBase
     /// Address of the routing agent.
     nsaddr_t ra_addr_;
 
+    /*
+     *  Result Analysis
+     */
     cOutVector NETRoutes;
+//    cOutVector PKTReceived;
+//    cOutVector PKTRecDecoded;
+
 
   protected:
 // Omnet INET vaiables and functions
