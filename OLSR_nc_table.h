@@ -33,7 +33,7 @@
  * The network coding table is thus defined as pairs: [generation, entry]. Each element
  * of the pair can be accesed via "first" and "second" members.
  */
-typedef std::map<int, OLSR_nc_entry*> nctable_t;
+typedef std::map<unsigned int, OLSR_nc_entry*> nctable_t;
 
 /*
  * Network Coding Table
@@ -48,14 +48,49 @@ class OLSR_nc_table : public cObject
     ~OLSR_nc_table();
 
     void        clear();
-    void        rm_entry(int gen);
-    int    size();
+    void        rm_entry(unsigned int gen);
+    uint32_t    size();
 
-    void add_entry(int gen, OLSR_nc_entry* new_entry);
+    void add_entry(unsigned int gen, OLSR_nc_entry* new_entry);
 
-    OLSR_nc_entry*  lookup(int gen);
+    OLSR_nc_entry*  lookup(unsigned int gen);
 
     virtual std::string detailedInfo();
 };
+
+
+
+/*
+ * \brief Defines nc_glob_table_t as a map of a map of OLSR_nc_entry (nctable_t),
+ *  whose key is the source address.
+ *
+ * The network coding global table is thus defined as pairs: [src_address, nctable_t].
+ * Each element of the pair can be accesed via "first" and "second" members.
+ */
+typedef std::map<nsaddr_t, nctable_t> nc_glob_table_t;
+
+/*
+ * Network Coding Table
+ */
+class OLSR_nc_glob_table : public cObject
+{
+	nc_glob_table_t    nc_g_t_;    ///< Data structure for the network coding table.
+
+  public:
+
+	OLSR_nc_glob_table();
+    ~OLSR_nc_glob_table();
+
+    void        clear();
+    void        rm_entry(const nsaddr_t &dest, unsigned int generation);
+    uint32_t    size();
+
+    void add_entry(const nsaddr_t &dest, unsigned int generation, OLSR_nc_entry* new_entry);
+
+    OLSR_nc_entry*  lookup(const nsaddr_t &dest, unsigned int generation);
+
+    virtual std::string detailedInfo();
+};
+
 
 #endif

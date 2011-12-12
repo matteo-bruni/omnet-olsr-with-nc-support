@@ -425,9 +425,10 @@ class OLSR : public ManetRoutingBase
     // Network coding finite field
     FiniteField* ff;
     // Network coding table
-    OLSR_nc_table nc_table_;
+    //OLSR_nc_table nc_table_;
+    OLSR_nc_glob_table nc_table_;
     // generation number
-    int generation;
+    unsigned int generation;
     int random_seed;
     double lcomb_modifier;
 
@@ -438,8 +439,8 @@ class OLSR : public ManetRoutingBase
      *  Result Analysis
      */
     cOutVector NETRoutes;
-//    cOutVector PKTReceived;
-//    cOutVector PKTRecDecoded;
+    cOutVector PKTNotDecoded;
+    cOutVector PKTRecDecoded;
 
 
   protected:

@@ -437,9 +437,9 @@ packet OLSR_pkt_coded
     //unsigned char coding_vector[];
     int coding_vector[];
     unsigned char payload[];
-    int generation;
-    short total_pkt_num;		// number of message coded inside the payload
-    short padding[];			// array of padding per unencoded packet
+    unsigned int generation;
+    unsigned int total_pkt_num;		// number of message coded inside the payload
+    unsigned int padding[];			// array of padding per unencoded packet
     short msg_per_packet[];
     
     //OLSR_msg msg[];	            ///< Packet body.
