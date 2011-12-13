@@ -46,6 +46,7 @@
 #include "Ieee802Ctrl_m.h"
 
 #include <time.h>
+#include <bitset>
 
 
 
@@ -539,6 +540,8 @@ void OLSR::handleMessage (cMessage *msg)
 {
 	EV << "handle message" <<endl;
 
+	std::cout << "HANDLEMESSAGE INIT"<< std::endl ;
+
     if (msg->isSelfMessage())
     {
     	EV << "msg isselfmessage" <<endl;
@@ -566,7 +569,10 @@ void OLSR::handleMessage (cMessage *msg)
 
     EV << "call schedule next event"<< endl;
 
+    std::cout << "HANDLEMESSAGE SCHEDULENEXT"<< std::endl ;
+
     scheduleNextEvent();
+    std::cout << "HANDLEMESSAGE FINE"<< std::endl ;
 }
 
 ///
@@ -760,12 +766,15 @@ OLSR::recv_olsr(cMessage* msg)
 {
 	EV << "recv_olsr" <<endl;
 
+	std::cout <<"\n "<<getAddress()<< " ha ricevuto un pacchetto"<< std::endl ;
+
 	nsaddr_t src_addr;
 	int index;
 
 	OLSR_msg* msg_array_;	// array of messages to process
 	int msg_size_ = 0;
 
+	std::cout.flush();
 
 	if (par("NetworkCoding").boolValue()){
 
@@ -775,13 +784,24 @@ OLSR::recv_olsr(cMessage* msg)
 		// All routing messages are sent from and to port RT_PORT,
 		// so we check it.
 
+		//std::cout << "\trecv crash"<< std::endl ;
+
 		op = check_packet_coded(PK(msg),src_addr,index);
+
+		//std::cout << "\trecv crash"<< std::endl ;
+
+		std::cout << "\treturn se op == NULL"<< std::endl ;
+
 		if (op==NULL)
 			return;
+
+		//std::cout << "\trecv crash2"<< std::endl ;
+
 
 		// If the packet contains no messages must be silently discarded.
 		// There could exist a message with an empty body, so the size of
 		// the packet would be pkt-hdr-size + msg-hdr-size.
+		std::cout << "\treturn se op->getByteLength() < OLSR_PKT_HDR_SIZE + OLSR_MSG_HDR_SIZE"<< std::endl ;
 
 		if (op->getByteLength() < OLSR_PKT_HDR_SIZE + OLSR_MSG_HDR_SIZE)
 		{
@@ -789,38 +809,72 @@ OLSR::recv_olsr(cMessage* msg)
 			return;
 		}
 
+		//std::cout << "\trecv crash3"<< std::endl ;
+
+		std::cout << "\t\t pacchetto con generazione: "<<op->generation()<<" inviato da "<< src_addr<<std::endl ;
+
+
 		// recover the vectors in array form
 
-		unsigned char* cv_ = new unsigned char[op->coding_vectorArraySize()];
-		unsigned char* pv_ = new unsigned char[op->payloadArraySize()];
-		for(unsigned int i=0; i<op->coding_vectorArraySize();i ++){
-			cv_[i] = op->coding_vector(i);
-		}
-		for (unsigned int i=0; i<op->payloadArraySize(); i++){
-			pv_[i] = op->payload(i);
-		}
+//		//unsigned char* cv_ = new unsigned char[op->coding_vectorArraySize()];
+//		unsigned char* pv_ = new unsigned char[op->payloadArraySize()];
+////		for(unsigned int i=0; i<op->coding_vectorArraySize();i ++){
+////			cv_[i] = op->coding_vector(i);
+////		}
+//		for (unsigned int i=0; i<op->payloadArraySize(); i++){
+//			pv_[i] = op->payload(i);
+//		}
+
+		//std::cout << "\trecv crash4"<< std::endl ;
 
 		// create the relative Coded Packet
 
 		// this ptr be deleted when the codedpacket will be deleted
-		//FiniteFieldVector* ff_cv_ = ff->byteToVector(cv_, op->coding_vectorArraySize());
 		FiniteFieldVector* ff_cv_ = new FiniteFieldVector(op->coding_vectorArraySize(), ff);
 		for(unsigned int i = 0; i<op->coding_vectorArraySize();i++){
 			ff_cv_->setCoordinate(i,op->coding_vector(i));
 		}
+		FiniteFieldVector* ff_pv_ = new FiniteFieldVector(op->payload_vectorArraySize(), ff);
+		for(unsigned int i = 0; i<op->payload_vectorArraySize();i++){
+			ff_pv_->setCoordinate(i,op->payload_vector(i));
+		}
 
 
-		FiniteFieldVector* ff_pv_ = ff->byteToVector(pv_, op->payloadArraySize());
+		//std::cout << "\trecv crash5"<< std::endl ;
 
-		// byte vectors no longer needed
-		delete [] cv_;
-		delete [] pv_;
+
+		//FiniteFieldVector* ff_pv_ = ff->byteToVector(pv_, op->payloadArraySize());
+//
+//		// byte vectors no longer needed
+//		delete [] cv_;
+//		delete [] pv_;
+
+		//std::cout << "\trecv crash6"<< std::endl ;
 
 		CodedPacket* coded_packet_ = new CodedPacket(ff_cv_, ff_pv_);
+
+
+		//////////////////////////////////
+
+//		if (op->total_pkt_num() ==2){
+//			std::cout << " ///////////// CODEDPACKET RICEVUTO ///////////////" << std::endl;
+//
+//			std::cout<< "Packet: "<< coded_packet_->toString()<< std::endl;
+//
+//
+//			std::cout << " //////////////////////////////////////////////////" << std::endl;
+//
+//
+//		}
+
+
+
+		/////////////////////////////
 
 		// use the generation to find its decoder, if it's new create nc_table entry
 		OLSR_nc_entry* entry = nc_table_.lookup(src_addr, op->generation());
 
+		//std::cout << "\trecv crash7"<< std::endl ;
 
 
 		//printf("\n Questo pacchetto generazione %u fa parte di un gruppo di %u pacchetti \n", op->generation(),op->total_pkt_num());
@@ -829,18 +883,23 @@ OLSR::recv_olsr(cMessage* msg)
 			entry = new OLSR_nc_entry();
 			// create the decoder
 			EV << "creating decoder" <<endl;
-			entry->decoder_ = new PacketDecoder(ff,op->coding_vectorArraySize(), op->payloadArraySize());
+			entry->decoder_ = new PacketDecoder(ff,op->coding_vectorArraySize(), op->max_payload_lenght());
 			entry->total_pkts_ = op->total_pkt_num();
-//			printf("\nho scritto dentro entry->totale = %u = %u",entry->total_pkts_, op->total_pkt_num());
-//			printf(" per la generazione %u nel nodo %u \n", op->generation(), this->idx);
+
 			// insert the entry in the table
+			//std::cout << "\trecv crash7b"<< std::endl ;
 
 			nc_table_.add_entry(src_addr, op->generation(), entry);
+
+			//std::cout << "\trecv crash7c"<< std::endl ;
+
 
 		} else {
 			//printf("\n Entry già esistente generazione: %u ", op->generation());
 			// if we have received al possible messages remove table entry and
 			// return
+			//std::cout << "\trecv crash7d"<< std::endl ;
+
 			int lin_comb = entry->total_pkts_ + int(entry->total_pkts_/lcomb_modifier);
 //			printf("pacchetti totali = %u modifier = %d ", entry->total_pkts_ ,lcomb_modifier);
 //			printf(" lin_comb = %u, decodificati fino adesso = %u ###",lin_comb, entry->decoded_pkts_);
@@ -850,19 +909,25 @@ OLSR::recv_olsr(cMessage* msg)
 //				printf("rimosso\n");
 			    PKTNotDecoded.record(1);
 				delete op;
+				std::cout << "\treturn perche entry->decoded_pkts_ == lin_comb "<< std::endl ;
 				return;
 			}
 			// if we have already decoded this generation
 			if(entry->decoded_pkts_ == entry->total_pkts_){
 				delete op;
 			    PKTNotDecoded.record(1);
+				std::cout << "\treturn perche entry->decoded_pkts_ == entry->total_pkts_ "<< std::endl ;
 				return;
 			}
+
+
 		}
 		//printf("\n MORTEEE #############################");
 		EV << "add to decoder"<<endl;
 		// add the packet recived to the decoder
 		std::vector<UncodedPacket*> uncoded_pkts_ = entry->decoder_->addPacket(coded_packet_);
+
+		//std::cout << "\trecv crash8"<< std::endl ;
 
 	    PKTRecDecoded.record(uncoded_pkts_.size());
 
@@ -871,14 +936,22 @@ OLSR::recv_olsr(cMessage* msg)
 			EV << "NC PacketDecoder: can't decode. need more packets" <<endl;
 		    //PKTNotDecoded.record(1);
 			delete op;
+			std::cout << "\treturn perche uncoded_pkts_.size() == 0"<< std::endl ;
 			return;
 		}
 
+		//std::cout << "\trecv crash9"<< std::endl ;
+
 		msg_size_ = 0;
+		std::cout<<" \t PACCHETTI DECODIFICATI : "<<uncoded_pkts_.size()<<std::endl;
+
 		// how many msgs have we decoded
 		for (unsigned int i=0; i<uncoded_pkts_.size(); i++) {
 			msg_size_ = msg_size_ + op->msg_per_packet(uncoded_pkts_[i]->getId());
+			std::cout << " \t ####### RICEVUTI MESSAGGI: "<<op->msg_per_packet(uncoded_pkts_[i]->getId())<< " PER PACCHETTO: " << uncoded_pkts_[i]->getId()<< std::endl ;
+
 		}
+		std::cout<<" \t TOTALE MESSAGGI : "<<msg_size_<<std::endl;
 		msg_array_ = new OLSR_msg[msg_size_];
 		int msg_offset = 0;
 
@@ -888,17 +961,34 @@ OLSR::recv_olsr(cMessage* msg)
 
 			entry->decoded_pkts_ = entry->decoded_pkts_+1;
 
-			int niente =0 ;
 			if (op->padding(uncoded_pkts_[i]->getId())!=0){
-				niente = op->padding(uncoded_pkts_[i]->getId())!=0;
+				//int niente = op->padding(uncoded_pkts_[i]->getId())!=0;
+				std::cout << " \t ####### RIMUOVO PADDING DI BYTES: "<<op->padding(uncoded_pkts_[i]->getId())<< " PER PACCHETTO: " << uncoded_pkts_[i]->getId()<< std::endl ;
+
+			}else {
+				std::cout << " \t ####### NON RIMUOVO PADDING PER PACCHETTO: "<< uncoded_pkts_[i]->getId()<< std::endl ;
 
 			}
 			// remove padding
 			unsigned int temp_lenght = uncoded_pkts_[i]->getPayloadLength() - op->padding(uncoded_pkts_[i]->getId());
-			unsigned char* temp = new unsigned char[temp_lenght];
-			memset(temp,0x00,sizeof(temp));
-			memcpy(temp, uncoded_pkts_[i]->getPayload(), sizeof(unsigned char)*temp_lenght);
+			std::cout << " \t ####### ARRAY DI MSG DEL PKT: "<< uncoded_pkts_[i]->getId()<<" LUNGO BYTES = "<< temp_lenght << std::endl ;
 
+
+			unsigned char* temp = new unsigned char[temp_lenght];
+			memset(temp,0x00,temp_lenght);
+			memcpy(temp, uncoded_pkts_[i]->getPayload(), sizeof(unsigned char)*temp_lenght);
+//
+//			if(entry->total_pkts_ == 2){
+//				printf("\n\n ******************** Hex representation ***************\n   ");
+//				printf("\n\n ******************** RICEZIONE   %u     ***************\n   ", sizeof(unsigned char)*temp_lenght);
+//				    for ( int a=0 ; a<temp_lenght; a++){
+//				    	if (a % 100 == 0){
+//				    		printf("\n");
+//				    	}
+//				        printf("%x", temp[a]);
+//				    }
+//					printf("\n\n ****************************************************\n   ");
+//			}
 
 			// recover the array of OLSR_msg[]
 			OLSR_msg* back = reinterpret_cast<OLSR_msg *>(temp);
@@ -925,6 +1015,8 @@ OLSR::recv_olsr(cMessage* msg)
 
 		//printf("\n MORTEEE22222222 #############################");
 
+
+
 		for (unsigned int j=0; j<uncoded_pkts_.size(); j++) {
 			// clear memory from temp pointers
 			delete uncoded_pkts_[j];
@@ -932,6 +1024,7 @@ OLSR::recv_olsr(cMessage* msg)
 		}
 
 		//printf("\n MORTEEE4444444444 #############################");
+
 
 		delete op;
 
@@ -972,12 +1065,32 @@ OLSR::recv_olsr(cMessage* msg)
     packetRecv++;
     // Process Olsr information
 
+//    if(){
+//
+//    }
 
 	// packet type agnostic
 	for (int i = 0; i < msg_size_; i++)
 	{
 		//OLSR_msg& msg = op->msg(i);
 		OLSR_msg msg = msg_array_[i];
+
+
+		std::cout<<"\n\n###### "<<getAddress()<<" HA RICEVUTO UN MESSAGGIO DA "<< src_addr<< " #####"<<std::endl;
+			// Process the message according to its type
+			if (msg.msg_type() == OLSR_HELLO_MSG)
+				std::cout << "# HELLO "<< std::endl;
+			else if (msg.msg_type() == OLSR_TC_MSG){
+				std::cout << "# TC "<< std::endl;
+			}
+			else if (msg.msg_type() == OLSR_MID_MSG)
+				std::cout << "# MID  "<< std::endl;
+			else{
+				unsigned char c = msg.msg_type();
+				std::cout << "# "<< std::bitset<8>(c)<< " BOH " << std::endl;
+			}
+		std::cout<<"############################################################\n\n"<<std::endl;
+
 
 		// If ttl is less than or equal to zero, or
 		// the receiver is the same as the originator,
@@ -995,8 +1108,10 @@ OLSR::recv_olsr(cMessage* msg)
 			// Process the message according to its type
 			if (msg.msg_type() == OLSR_HELLO_MSG)
 				process_hello(msg, ra_addr(), src_addr,index);
-			else if (msg.msg_type() == OLSR_TC_MSG)
+			else if (msg.msg_type() == OLSR_TC_MSG){
+				std::cout << "\t PROCESS TC"<< std::endl ;
 				process_tc(msg, src_addr,index);
+			}
 			else if (msg.msg_type() == OLSR_MID_MSG)
 				process_mid(msg, src_addr,index);
 			else
@@ -1037,8 +1152,13 @@ OLSR::recv_olsr(cMessage* msg)
 
 	delete [] msg_array_;
 
+	std::cout << "\tcalcolo rtable comp "<< std::endl ;
+
 	// After processing all OLSR messages, we must recompute routing table
 	rtable_computation();
+
+	std::cout << "\treturn finale olsr recv."<< std::endl ;
+
 
 }
 
@@ -1363,6 +1483,8 @@ OLSR::rtable_computation()
         }
     }
 
+    std::cout << " morte " <<std::endl;
+
     // N2 is the set of 2-hop neighbors reachable from this node, excluding:
     // (i)   the nodes only reachable by members of N with willingness WILL_NEVER
     // (ii)  the node performing the computation
@@ -1412,6 +1534,7 @@ OLSR::rtable_computation()
 
         }
     }
+    std::cout << " morte mortale" <<std::endl;
 
     for (uint32_t h = 2; ; h++)
     {
@@ -1437,21 +1560,33 @@ OLSR::rtable_computation()
                                   entry2->iface_addr(),
                                   h+1,entry2->local_iface_index(),entry2);
                 nsaddr_t nm = IPAddress::ALLONES_ADDRESS;
-                if (!useIndex)
-                    omnet_chg_rte (topology_tuple->dest_addr(),
+                std::cout << " morte mortale 1" <<std::endl;
+
+                std::cout << " \t ERROR ORIGIN TOPOLOGY_TUPLE->DEST_ADDDR: \t"<< topology_tuple->dest_addr() <<std::endl;
+                std::cout << " \t ERROR ORIGIN TOPOLOGY_TUPLE->LAST_ADDR: \t"<< topology_tuple->last_addr() <<std::endl;
+                if (!useIndex){
+                    std::cout << " \t !useIndex == True" <<std::endl;
+
+                	omnet_chg_rte (topology_tuple->dest_addr(),
                                    entry2->next_addr(),
                                    nm,
                                    h+1,false,entry2->iface_addr());
 
-                else
+                }else{
+                	std::cout << " \t !useIndex == False" <<std::endl;
                     omnet_chg_rte (topology_tuple->dest_addr(),
                                    entry2->next_addr(),
                                    nm,
                                    h+1,false,entry2->local_iface_index());
 
+                }
+                std::cout << " morte mortale 1" <<std::endl;
+
                 added = true;
             }
         }
+
+        std::cout << " morte finale" <<std::endl;
 
         // 5. For each entry in the multiple interface association base
         // where there exists a routing entry such that:
@@ -1787,6 +1922,26 @@ OLSR::enque_msg(OLSR_msg& msg, double delay)
     assert(delay >= 0);
 	EV << "enqueue_msg" <<endl;
 
+
+	std::cout<<"\n\n###### METTO IN CODA PER NODO "<<getAddress()<<" #####"<<std::endl;
+		// Process the message according to its type
+		if (msg.msg_type() == OLSR_HELLO_MSG)
+			std::cout << "# HELLO "<< std::endl;
+		else if (msg.msg_type() == OLSR_TC_MSG){
+			std::cout << "# TC "<< std::endl;
+		}
+		else if (msg.msg_type() == OLSR_MID_MSG)
+			std::cout << "# MID  "<< std::endl;
+		else{
+			unsigned char c = msg.msg_type();
+			std::cout << "# "<< std::bitset<8>(c)<< " BOH " << std::endl;
+		}
+
+
+	std::cout<<"################################################\n\n"<<std::endl;
+
+
+
     msgs_.push_back(msg);
     OLSR_MsgTimer* timer = new OLSR_MsgTimer(this);
     timer->resched(delay);
@@ -1802,20 +1957,44 @@ OLSR::enque_msg(OLSR_msg& msg, double delay)
 void
 OLSR::send_pkt()
 {
+	std::cout << "\t INIZIO SEND_PKT"<< std::endl ;
 
 	EV << "Send Packet" <<endl;
 
 	int num_msgs = msgs_.size();
 	if (num_msgs>1)
-		printf("\nNUMERO messaggi: %u\n", num_msgs);
+		std::cout << "\t NUMERO MESSAGGI: "<< num_msgs << std::endl ;
+
 
 	EV << "check msg num" <<endl;
 	if (num_msgs == 0){
 		EV << "0 msg" <<endl;
+		std::cout << "\t 0 MESSAGGI DA INVIARE -> RETURN"<< std::endl ;
 		return;
 
 	}
 
+	std::cout << "\t 2####### INVIO MESSAGGI: "<< msgs_.size() << std::endl ;
+	std::cout << "\t         che contiene"<< std::endl ;
+
+	for(int k =0;k<msgs_.size();k++){
+		unsigned char c = msgs_[k].msg_type();
+
+		// Process the message according to its type
+		if (msgs_[k].msg_type() == OLSR_HELLO_MSG)
+			std::cout << " HELLO ";
+		else if (msgs_[k].msg_type() == OLSR_TC_MSG){
+			std::cout << " TC ";
+		}
+		else if (msgs_[k].msg_type() == OLSR_MID_MSG)
+			std::cout << " MID  ";
+		else
+			std::cout << std::bitset<8>(c)<< " BOH " << std::endl;
+			//printf(" BOH %x ", c);
+			//std::cout<< " BOH "<< c ;
+
+	}
+	std::cout << std::endl ;
 
 
 	EV << "calcolates number of needed packets" <<endl;
@@ -1824,9 +2003,7 @@ OLSR::send_pkt()
 				   (num_msgs/OLSR_MAX_MSGS + 1);
 
 	if(num_pkts>1){
-		printf("\nNUMERO PACCHETTI: %u\n", num_pkts);
-		int robainutile = 0 ;
-		robainutile ++;
+		std::cout << "\t Numero pacchetti: "<<num_pkts<< std::endl ;
 	}
 
 	EV << "check dest address" <<endl;
@@ -1856,14 +2033,36 @@ OLSR::send_pkt()
 		// create array of bytes per packet
 		for (int i = 0; i < num_pkts; i++) {
 
-			//////
-
-			/////
 
 			// determine the number of olsr_msg to send in the 'i' packet
 			short msg_in_packet = (msgs_.size() < OLSR_MAX_MSGS) ? msgs_.size(): OLSR_MAX_MSGS;
 
 			msg_per_packet[i] = msg_in_packet;
+			if(true){
+				std::cout << "\t ####### INVIO MESSAGGI: "<< msg_in_packet << " PER PACCHETTO  "<<i << std::endl ;
+				std::cout << "\t         che contiene"<< std::endl ;
+
+				for(int k =0;k<msg_in_packet;k++){
+					unsigned char c = msgs_[k].msg_type();
+
+					// Process the message according to its type
+					if (msgs_[k].msg_type() == OLSR_HELLO_MSG)
+						std::cout << " HELLO ";
+					else if (msgs_[k].msg_type() == OLSR_TC_MSG){
+						std::cout << " TC ";
+					}
+					else if (msgs_[k].msg_type() == OLSR_MID_MSG)
+						std::cout << " MID  ";
+					else
+			    		std::cout << std::bitset<8>(c)<< " BOH " << std::endl;
+						//printf(" BOH %x ", c);
+						//std::cout<< " BOH "<< c ;
+
+				}
+				std::cout << std::endl ;
+
+
+			}
 
 			OLSR_msg* msg_array_ = new OLSR_msg[msg_in_packet];
 
@@ -1883,8 +2082,25 @@ OLSR::send_pkt()
 
 			// convert in unsigned char the payload
 			//unsigned char * payload_byte =reinterpret_cast<unsigned char*>(msg_array_);
+			int lunghezza = sizeof(OLSR_msg)*msg_in_packet;
+
 			unsigned char* byte_conversion = new unsigned char[sizeof(OLSR_msg)*msg_in_packet];
 			memcpy(byte_conversion, reinterpret_cast<unsigned char*>(msg_array_), sizeof(OLSR_msg)*msg_in_packet);
+
+
+//			if(num_pkts == 2 && i ==0 ){
+//		        fflush(stdin);
+//
+//				printf("\n\n ******************** Hex representation ***************\n   ");
+//				printf("\n\n ******************** INVIOBYTE   %u     ***************\n   ", lunghezza);
+//				    for ( int a=0 ; a<lunghezza; a++){
+//				    	if (a % 100 == 0){
+//				    		printf("\n");
+//				    	}
+//				        printf("%x", byte_conversion[a]);
+//				    }
+//					printf("\n\n ****************************************************\n   ");
+//			}
 
 			delete [] msg_array_;
 			//byte_conversion = reinterpret_cast<unsigned char*>(msg_array_);
@@ -1895,8 +2111,7 @@ OLSR::send_pkt()
 
 			payload_vector_bytes.push_back(sizeof(OLSR_msg)*msg_in_packet);
 
-			int lunghezza = sizeof(OLSR_msg)*msg_in_packet;
-			printf("\n lunghezza pacchetto %u = %u \n", i, lunghezza);
+			std::cout << " \t ARRAY DI MSG DEL PKT: "<< i <<" LUNGO BYTES = "<< lunghezza << std::endl;
 
 		}
 
@@ -1952,15 +2167,14 @@ OLSR::send_pkt()
 		// linear combination to send
 		int lin_comb_num = num_pkts + int(num_pkts/lcomb_modifier);
 
-		printf("\nNUMERO PACCHETTI: %u", num_pkts);
+		std::cout << "\t Numero pacchetti: "<<num_pkts<<" genero: "<<lin_comb_num << "combinazioni lineari"<< std::endl ;
 
-		printf(" genero %u combinazioni lineari \n", lin_comb_num);
 		std::vector<CodedPacket*> networkOutput;
 		networkOutput.reserve(lin_comb_num);
 
 
-		srand ( time(NULL) );
-		generation = rand();
+		//srand ( time(NULL) );
+		//generation = rand();
 
 		// generate random numbers to use in lin comb
 		srand(random_seed);
@@ -1976,7 +2190,14 @@ OLSR::send_pkt()
 				delete copy;
 			}
 
-
+//			if (i = 0 && num_pkts == 2){
+//				std::cout << " ///////////// CODEDPACKET CREATO // ///////////////" << std::endl;
+//
+//				std::cout<< "Packet: "<< networkOutput[i]->toString()<< std::endl;
+//
+//
+//				std::cout << " //////////////////////////////////////////////////" << std::endl;
+//			}
 			/*
 			 * 	send the packet
 			 */
@@ -1997,24 +2218,26 @@ OLSR::send_pkt()
 //			delete [] cv_bytes_;
 
 			// set the coding vector
-			int cv_size_ = ff->bytesLength(networkOutput[i]->getCodingVector()->getLength());
+			int cv_size_ = networkOutput[i]->getCodingVector()->getLength();//ff->bytesLength();
 			//unsigned char* cv_bytes_ = ff->vectorToBytes(networkOutput[i]->getCodingVector());
 			op->setCoding_vectorArraySize(cv_size_);
 			for(int k=0;k<cv_size_;k++){
 				op->setCoding_vector(k, networkOutput[i]->getCodingVector()->getCoordinate(k));
 			}
 
-
+			std::cout << "VERA LUNG MASSIMA : "<<max_lenght<<" QUELLA CHE SCRIVO "<< cv_size_<<std::endl;
 
 			// set the payload vector
-			int pv_size_ = ff->bytesLength(networkOutput[i]->getPayloadVector()->getLength());
-			unsigned char* pv_bytes_ = ff->vectorToBytes(networkOutput[i]->getPayloadVector());
-			op->setPayloadArraySize(pv_size_);
+			int pv_size_ = networkOutput[i]->getPayloadVector()->getLength();//ff->bytesLength();
+			//unsigned char* pv_bytes_ = ff->vectorToBytes(networkOutput[i]->getPayloadVector());
+			op->setPayload_vectorArraySize(pv_size_);
 			for(int k=0;k<pv_size_;k++){
-				op->setPayload(k, pv_bytes_[k] );
+				op->setPayload_vector(k, networkOutput[i]->getPayloadVector()->getCoordinate(k) );
 			}
 
-			delete [] pv_bytes_;
+			op->setMax_payload_lenght(max_lenght);
+
+			//delete [] pv_bytes_;
 
 			op->setPaddingArraySize(num_pkts);
 			op->setMsg_per_packetArraySize(num_pkts);
@@ -2022,8 +2245,6 @@ OLSR::send_pkt()
 				op->setPadding(k, padding[k]);
 				op->setMsg_per_packet(k, msg_per_packet[k]);
 			}
-			delete [] padding;
-			delete [] msg_per_packet;
 
 			op->setGeneration(generation);
 			op->setTotal_pkt_num(num_pkts);
@@ -2039,7 +2260,56 @@ OLSR::send_pkt()
 
 			EV <<"Packed Sended";
 		}
+
+
 		/////////////////////////////////////////////////////
+
+		/* decode the received packets */
+		PacketDecoder decoder(ff, num_pkts, max_lenght);
+
+		std::cout << " ************************** DECODIFICA IN LOCO **************************** " <<std::endl;
+
+		std::vector<UncodedPacket*> decoded_packets;
+		for ( int i = 0; i < lin_comb_num ; i++) {
+
+			std::vector<UncodedPacket*> packets = decoder.addPacket(networkOutput[i]);
+			//printUncodedPackets(packets, payloadLen);
+			//std::cout<< packets.size()<<std::endl;
+			std::cout<< "Recived packets: "<<i<< ". Decoded packets thanks this reception:" <<std::endl;
+			for (unsigned int j=0; j<packets.size(); j++) {
+				// save decoded packets for later use
+				decoded_packets.push_back(packets[j]->copy());
+
+			}
+			for (unsigned int j=0; j<packets.size(); j++) {
+				// clear memory from temp pointers
+				delete packets[j];
+
+			}
+
+		}
+
+//		for( int i=0; i< decoded_packets.size(); i++){
+//			if(decoded_packets[i]->getId() == 0 && num_pkts ==2){
+//				printf("\n\n ******************** Hex representation ***************\n   ");
+//				printf("\n\n ******************** DECODIFICABYTE   %u     ***************\n   ", decoded_packets[i]->getPayloadLength());
+//					for ( int a=0 ; a<decoded_packets[i]->getPayloadLength(); a++){
+//						if (a % 100 == 0){
+//							printf("\n");
+//						}
+//						printf("%x", decoded_packets[i]->getPayload()[a]);
+//					}
+//					printf("\n\n ****************************************************\n   ");
+//			}
+//		}
+//
+//
+//		std::cout << " ************************** FINE DECODIFICA IN LOCO **************************** " <<std::endl;
+
+
+		/////////////////////////////////////////////////////
+		delete [] padding;
+		delete [] msg_per_packet;
 
 		for ( int i = 0 ; i < lin_comb_num ; i++) {
 			if (i<num_pkts){
@@ -2054,9 +2324,12 @@ OLSR::send_pkt()
 
 		// increase generation
 		// int maxvalue 65535 use ulong?
-		//generation = (generation+1) % 60000;
+		// TODO: sostituire con limit per int
+		std::cout << "\t INVIATO "<<lin_comb_num<<" pacchetti con generazione: "<< generation<< " dal nodo "<< getAddress()<< std::endl;
 
-		printf("\n\n INVIATO %u pacchetti con generazione %u dal nodo %s", num_pkts, generation, nodeName);
+		generation = (generation+1) % 60000;
+
+
 	}
 	else {
 
@@ -2085,6 +2358,8 @@ OLSR::send_pkt()
 			sendToIp (op, RT_PORT,destAdd, RT_PORT,IP_DEF_TTL,(nsaddr_t)0);
 		}
 	}
+
+	std::cout << "\t FINE SEND_PKT"<< std::endl ;
 
 }
 
