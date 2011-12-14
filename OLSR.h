@@ -470,7 +470,7 @@ class OLSR : public ManetRoutingBase
 	int OLSR_TOP_HOLD_TIME;
 	int OLSR_MID_HOLD_TIME;
 	/// Maximum allowed jitter.
-	int OLSR_MAXJITTER;
+	double OLSR_MAXJITTER;
 
 	/******* end def compability ****/
 

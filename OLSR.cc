@@ -534,8 +534,7 @@ OLSR::initialize(int stage)
     	OLSR_TOP_HOLD_TIME = 3*OLSR_TC_INTERVAL;
     	OLSR_MID_HOLD_TIME = 3*OLSR_MID_INTERVAL;
     	/// Maximum allowed jitter.
-    	OLSR_MAXJITTER = OLSR_HELLO_INTERVAL/4;
-        std::cout<< " OLSR_MAXJITTER "<<OLSR_MAXJITTER << std::endl;
+    	OLSR_MAXJITTER = double(OLSR_HELLO_INTERVAL)/4;
 
 
     	/******************** end define compability ********/
