@@ -433,8 +433,7 @@ packet OLSR_pkt_coded
     long sn;                    /// CapProbe packet sequence number
     double send_time;           /// Packet sending timestamp
     
-    /// nc section
-    //unsigned char coding_vector[];
+    // Network Coding Vars
     int coding_vector[];
     int payload_vector[];
     
@@ -442,11 +441,8 @@ packet OLSR_pkt_coded
     unsigned int total_pkt_num;		// number of message coded inside the payload
     unsigned int padding[];			// array of padding per unencoded packet
     short msg_per_packet[];
+    unsigned int max_payload_lenght; // lenght in byte of the payload
     
-    unsigned int max_payload_lenght;
-    
-    //OLSR_msg msg[];	            ///< Packet body.
-    //CodedPacket msg;
 }
 
 

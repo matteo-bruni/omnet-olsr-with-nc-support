@@ -101,14 +101,15 @@
 
 /********** Intervals **********/
 
-/// HELLO messages emission interval.
-#define OLSR_HELLO_INTERVAL 2
-
-/// TC messages emission interval.
-#define OLSR_TC_INTERVAL    5
-
-/// MID messages emission interval.
-#define OLSR_MID_INTERVAL   OLSR_TC_INTERVAL
+/********** Moved inside OLSR::init ***********/////////
+//	/// HELLO messages emission interval.
+//	#define OLSR_HELLO_INTERVAL 2
+//
+//	/// TC messages emission interval.
+//	#define OLSR_TC_INTERVAL    5
+//
+//	/// MID messages emission interval.
+//	#define OLSR_MID_INTERVAL   OLSR_TC_INTERVAL
 
 ///
 /// \brief Period at which a node must cite every link and every neighbor.
@@ -122,12 +123,17 @@
 
 /// Neighbor holding time.
 #define OLSR_NEIGHB_HOLD_TIME   3*OLSR_REFRESH_INTERVAL
-/// Top holding time.
-#define OLSR_TOP_HOLD_TIME  3*OLSR_TC_INTERVAL
+
+/****** moved in init ********/
+//	/// Top holding time.
+//	#define OLSR_TOP_HOLD_TIME  3*OLSR_TC_INTERVAL
+//	/// MID holding time.
+//	#define OLSR_MID_HOLD_TIME  3*OLSR_MID_INTERVAL
+
+
 /// Dup holding time.
 #define OLSR_DUP_HOLD_TIME  30
-/// MID holding time.
-#define OLSR_MID_HOLD_TIME  3*OLSR_MID_INTERVAL
+
 
 
 /********** Link types **********/
@@ -167,17 +173,21 @@
 
 /********** Miscellaneous constants **********/
 
-/// Maximum allowed jitter.
-#define OLSR_MAXJITTER      OLSR_HELLO_INTERVAL/4
+/********  moved inside init  ***********/
+//	/// Maximum allowed jitter.
+//	#define OLSR_MAXJITTER      OLSR_HELLO_INTERVAL/4
+//	/// Random number between [0-OLSR_MAXJITTER] used to jitter OLSR packet transmission.
+//	//#define JITTER            (Random::uniform()*OLSR_MAXJITTER)
+//	#define JITTER (uniform(0,(double)OLSR_MAXJITTER))
+
+
 /// Maximum allowed sequence number.
 #define OLSR_MAX_SEQ_NUM    65535
 /// Used to set status of an OLSR_nb_tuple as "not symmetric".
 #define OLSR_STATUS_NOT_SYM 0
 /// Used to set status of an OLSR_nb_tuple as "symmetric".
 #define OLSR_STATUS_SYM     1
-/// Random number between [0-OLSR_MAXJITTER] used to jitter OLSR packet transmission.
-//#define JITTER            (Random::uniform()*OLSR_MAXJITTER)
-#define JITTER (uniform(0,(double)OLSR_MAXJITTER))
+
 
 class OLSR;         // forward declaration
 
@@ -190,6 +200,8 @@ class OLSR_Timer :  public cOwnedObject /*cMessage*/
   protected:
     OLSR*       agent_; ///< OLSR agent which created the timer.
     cObject* tuple_;
+
+
   public:
 
     virtual void removeTimer();
@@ -200,6 +212,7 @@ class OLSR_Timer :  public cOwnedObject /*cMessage*/
     virtual void removeQueueTimer();
     virtual void resched(double time);
     virtual void setTuple(cObject *tuple) {tuple_ = tuple;}
+    double JITTER();
 };
 
 
@@ -443,6 +456,24 @@ class OLSR : public ManetRoutingBase
     cOutVector PKTRecDecoded;
 
 
+    /*** Define compability ****/
+
+	/// HELLO messages emission interval.
+	int OLSR_HELLO_INTERVAL;
+
+	/// TC messages emission interval.
+	int OLSR_TC_INTERVAL;
+
+	/// MID messages emission interval.
+	int OLSR_MID_INTERVAL;
+
+	int OLSR_TOP_HOLD_TIME;
+	int OLSR_MID_HOLD_TIME;
+	/// Maximum allowed jitter.
+	int OLSR_MAXJITTER;
+
+	/******* end def compability ****/
+
   protected:
 // Omnet INET vaiables and functions
     char nodeName[50];
@@ -559,6 +590,9 @@ class OLSR : public ManetRoutingBase
     static double       emf_to_seconds(uint8_t);
     static uint8_t      seconds_to_emf(double);
     static int      node_id(const nsaddr_t&);
+
+	/// #define JITTER
+	double JITTER();
 
     // Routing information access
     virtual uint32_t getRoute(const Uint128 &,std::vector<Uint128> &);

@@ -148,6 +148,16 @@ OLSR_nc_glob_table::~OLSR_nc_glob_table()
  */
 void OLSR_nc_glob_table::clear()
 {
+
+	for (nc_glob_table_t::iterator it = nc_g_t_.begin(); it != nc_g_t_.end(); it++)
+	{
+		nctable_t& inner_map = (*it).second;
+		for (nctable_t::iterator it2 = inner_map.begin(); it2 != inner_map.end(); it2++)
+					delete (*it2).second;
+
+		inner_map.clear();
+	}
+
 	nc_g_t_.clear();
 }
 /*

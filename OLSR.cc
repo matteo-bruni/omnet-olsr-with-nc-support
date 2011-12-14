@@ -87,6 +87,10 @@ OLSR_Timer::OLSR_Timer(OLSR* agent) : cOwnedObject("OLSR_Timer")
     tuple_=NULL;
 }
 
+double OLSR_Timer::JITTER(){
+	return agent_->JITTER();
+}
+
 OLSR_Timer::~OLSR_Timer()
 {
     removeTimer();
@@ -132,7 +136,7 @@ OLSR_HelloTimer::expire()
 {
     agent_->send_hello();
     // agent_->scheduleAt(simTime()+agent_->hello_ival_- JITTER,this);
-    agent_->timerQueuePtr->insert(std::pair<simtime_t, OLSR_Timer *>(simTime()+agent_->hello_ival_- JITTER,this));
+    agent_->timerQueuePtr->insert(std::pair<simtime_t, OLSR_Timer *>(simTime()+agent_->hello_ival_- JITTER(),this));
 }
 
 ///
@@ -145,7 +149,7 @@ OLSR_TcTimer::expire()
     if (agent_->mprselset().size() > 0)
         agent_->send_tc();
     // agent_->scheduleAt(simTime()+agent_->tc_ival_- JITTER,this);
-    agent_->timerQueuePtr->insert(std::pair<simtime_t, OLSR_Timer *>(simTime()+agent_->tc_ival_- JITTER,this));
+    agent_->timerQueuePtr->insert(std::pair<simtime_t, OLSR_Timer *>(simTime()+agent_->tc_ival_- JITTER(),this));
 
 }
 
@@ -160,7 +164,7 @@ OLSR_MidTimer::expire()
 #ifdef MULTIPLE_IFACES_SUPPORT
     agent_->send_mid();
 //  agent_->scheduleAt(simTime()+agent_->mid_ival_- JITTER,this);
-    agent_->timerQueue.insert(std::pair<simtime_t, OLSR_Timer *>(simTime()+agent_->mid_ival_- JITTER,this));
+    agent_->timerQueue.insert(std::pair<simtime_t, OLSR_Timer *>(simTime()+agent_->mid_ival_- JITTER(),this));
 #endif
 }
 
@@ -510,8 +514,33 @@ OLSR::initialize(int stage)
         state_ptr = new OLSR_state();
 
         hello_timer_.resched(hello_ival_);
-        tc_timer_.resched(hello_ival_);
-        mid_timer_.resched(hello_ival_);
+        tc_timer_.resched(tc_ival_);//hello_ival_);
+        mid_timer_.resched(mid_ival_);//hello_ival_);
+
+
+        std::cout<< " Definisco le costanti " << std::endl;
+        /**** keeping old define name to mantain code compability ****/
+
+    	/// HELLO messages emission interval.
+    	OLSR_HELLO_INTERVAL = hello_ival_;
+        std::cout<< " HELLO IVAL "<<OLSR_HELLO_INTERVAL << std::endl;
+
+    	/// TC messages emission interval.
+    	OLSR_TC_INTERVAL = tc_ival_;
+
+    	/// MID messages emission interval.
+    	OLSR_MID_INTERVAL  = tc_ival_;
+
+    	OLSR_TOP_HOLD_TIME = 3*OLSR_TC_INTERVAL;
+    	OLSR_MID_HOLD_TIME = 3*OLSR_MID_INTERVAL;
+    	/// Maximum allowed jitter.
+    	OLSR_MAXJITTER = OLSR_HELLO_INTERVAL/4;
+        std::cout<< " OLSR_MAXJITTER "<<OLSR_MAXJITTER << std::endl;
+
+
+    	/******************** end define compability ********/
+
+
         if (use_mac())
         {
             linkLayerFeeback();
@@ -908,23 +937,6 @@ OLSR::recv_olsr(cMessage* msg)
 	{
 		//OLSR_msg& msg = op->msg(i);
 		OLSR_msg msg = msg_array_[i];
-
-//
-//		std::cout<<"\n\n###### "<<getAddress()<<" HA RICEVUTO UN MESSAGGIO DA "<< src_addr<< " #####"<<std::endl;
-//			// Process the message according to its type
-//			if (msg.msg_type() == OLSR_HELLO_MSG)
-//				std::cout << "# HELLO "<< std::endl;
-//			else if (msg.msg_type() == OLSR_TC_MSG){
-//				std::cout << "# TC "<< std::endl;
-//			}
-//			else if (msg.msg_type() == OLSR_MID_MSG)
-//				std::cout << "# MID  "<< std::endl;
-//			else{
-//				unsigned char c = msg.msg_type();
-//				std::cout << "# "<< std::bitset<8>(c)<< " BOH " << std::endl;
-//			}
-//		std::cout<<"############################################################\n\n"<<std::endl;
-
 
 		// If ttl is less than or equal to zero, or
 		// the receiver is the same as the originator,
@@ -1649,7 +1661,7 @@ OLSR::forward_default(OLSR_msg& msg, OLSR_dup_tuple* dup_tuple, const nsaddr_t &
             new_msg.hop_count()++;
             // We have to introduce a random delay to avoid
             // synchronization with neighbors.
-            enque_msg(new_msg, JITTER);
+            enque_msg(new_msg, JITTER());
             retransmitted = true;
         }
     }
@@ -1751,35 +1763,12 @@ OLSR::enque_msg(OLSR_msg& msg, double delay)
 void
 OLSR::send_pkt()
 {
-	//std::cout << "\t INIZIO SEND_PKT"<< std::endl ;
-
 	int num_msgs = msgs_.size();
-//	if (num_msgs>1)
-//		std::cout << "\t NUMERO MESSAGGI: "<< num_msgs << std::endl ;
 
 	if (num_msgs == 0){
 		return;
 	}
 
-//
-//	for(int k =0;k<msgs_.size();k++){
-//		unsigned char c = msgs_[k].msg_type();
-//
-//		// Process the message according to its type
-//		if (msgs_[k].msg_type() == OLSR_HELLO_MSG)
-//			std::cout << " HELLO ";
-//		else if (msgs_[k].msg_type() == OLSR_TC_MSG){
-//			std::cout << " TC ";
-//		}
-//		else if (msgs_[k].msg_type() == OLSR_MID_MSG)
-//			std::cout << " MID  ";
-//		else
-//			std::cout << std::bitset<8>(c)<< " BOH " << std::endl;
-//			//printf(" BOH %x ", c);
-//			//std::cout<< " BOH "<< c ;
-//
-//	}
-//	std::cout << std::endl ;
 
 	// Calculates the number of needed packets
 	int num_pkts = (num_msgs%OLSR_MAX_MSGS == 0) ? num_msgs/OLSR_MAX_MSGS :
@@ -2099,7 +2088,7 @@ OLSR::send_hello()
 
     msg.msg_size() = msg.size();
     helloCounter++;
-    enque_msg(msg, JITTER);
+    enque_msg(msg, JITTER());
 }
 
 ///
@@ -2132,7 +2121,7 @@ OLSR::send_tc()
 
     msg.msg_size()      = msg.size();
     tcCounter++;
-    enque_msg(msg, JITTER);
+    enque_msg(msg, JITTER());
 }
 
 ///
@@ -2158,7 +2147,7 @@ OLSR::send_mid()
 
     msg.msg_size()      = msg.size();
     midCounter++;
-    enque_msg(msg, JITTER);
+    enque_msg(msg, JITTER());
 }
 
 ///
@@ -2437,7 +2426,7 @@ OLSR::mac_failed(IPDatagram* p)
 void
 OLSR::set_hello_timer()
 {
-    hello_timer_.resched((double)(hello_ival() - JITTER));
+    hello_timer_.resched((double)(hello_ival() - JITTER()));
 }
 
 ///
@@ -2446,7 +2435,7 @@ OLSR::set_hello_timer()
 void
 OLSR::set_tc_timer()
 {
-    tc_timer_.resched((double)(tc_ival() - JITTER));
+    tc_timer_.resched((double)(tc_ival() - JITTER()));
 }
 
 ///
@@ -2455,7 +2444,7 @@ OLSR::set_tc_timer()
 void
 OLSR::set_mid_timer()
 {
-    mid_timer_.resched((double)(mid_ival() - JITTER));
+    mid_timer_.resched((double)(mid_ival() - JITTER()));
 }
 
 ///
@@ -2908,6 +2897,11 @@ OLSR::node_id(const nsaddr_t &addr)
         assert(node != NULL);
         return node->nodeid();
     */
+}
+
+double OLSR::JITTER(){
+	//std::cout << (uniform(0,(double)OLSR_MAXJITTER))<< std::endl;
+	return (uniform(0,(double)OLSR_MAXJITTER));
 }
 
 
