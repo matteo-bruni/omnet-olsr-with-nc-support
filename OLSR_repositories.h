@@ -353,6 +353,35 @@ typedef struct OLSR_topology_tuple : public cObject
 
 } OLSR_topology_tuple;
 
+typedef struct OLSR_nc_tuple: public cObject {
+
+	// generation
+	unsigned int generation_;
+	// source address
+	nsaddr_t source_address_;
+	/// Time at which this tuple expires and must be removed.
+	double      time_;
+	// cMessage *asocTimer;
+	cObject *asocTimer;
+
+
+	inline nsaddr_t & src_addr()   { return source_address_; }
+	inline unsigned int & generation()   { return generation_; }
+	inline void setSource_addr(const nsaddr_t &a) {source_address_=a; }
+	inline double&      time()      { return time_; }
+
+	OLSR_nc_tuple() {asocTimer = NULL;}
+	OLSR_nc_tuple (OLSR_nc_tuple * e)
+    {
+		generation_ = e->generation_;
+		source_address_ = e->source_address_;
+        time_ = e->time_;
+        asocTimer = NULL;
+    }
+    virtual OLSR_nc_tuple *dup() {return new OLSR_nc_tuple(this);}
+
+} OLSR_nc_tuple ;
+
 
 typedef std::set<nsaddr_t>          mprset_t;   ///< MPR Set type.
 typedef std::vector<OLSR_mprsel_tuple*>     mprselset_t;    ///< MPR Selector Set type.
@@ -362,5 +391,6 @@ typedef std::vector<OLSR_nb2hop_tuple*>     nb2hopset_t;    ///< 2-hop Neighbor 
 typedef std::vector<OLSR_topology_tuple*>   topologyset_t;  ///< Topology Set type.
 typedef std::vector<OLSR_dup_tuple*>        dupset_t;   ///< Duplicate Set type.
 typedef std::vector<OLSR_iface_assoc_tuple*>    ifaceassocset_t;///< Interface Association Set type.
+typedef std::vector<OLSR_nc_tuple*>    ncset_t;///
 
 #endif
