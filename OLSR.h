@@ -121,10 +121,11 @@
 
 /********** Holding times **********/
 
-/// Neighbor holding time.
-#define OLSR_NEIGHB_HOLD_TIME   3*OLSR_REFRESH_INTERVAL
+
 
 /****** moved in init ********/
+//	/// Neighbor holding time.
+//	#define OLSR_NEIGHB_HOLD_TIME   3*OLSR_REFRESH_INTERVAL
 //	/// Top holding time.
 //	#define OLSR_TOP_HOLD_TIME  3*OLSR_TC_INTERVAL
 //	/// MID holding time.
@@ -362,6 +363,20 @@ class OLSR_IfaceAssocTupleTimer : public OLSR_Timer
 
 };
 
+/// Timer for removing nc_table entries
+class OLSR_NCGenerationTimer : public OLSR_Timer
+{
+  public:
+	OLSR_NCGenerationTimer(OLSR* agent, OLSR_nc_tuple* tuple) : OLSR_Timer(agent)
+	{
+		tuple_      = tuple;
+	}
+
+	void setTuple(OLSR_nc_tuple* tuple) {tuple_=tuple; tuple->asocTimer = this;}
+	~OLSR_NCGenerationTimer();
+	virtual void expire();
+};
+
 /********** OLSR Agent **********/
 
 
@@ -389,6 +404,7 @@ class OLSR : public ManetRoutingBase
     friend class OLSR_MprSelTupleTimer;
     friend class OLSR_TopologyTupleTimer;
     friend class OLSR_IfaceAssocTupleTimer;
+    friend class OLSR_NCGenerationTimer;
     friend class OLSR_MsgTimer;
     friend class OLSR_Timer;
   protected:
@@ -469,6 +485,8 @@ class OLSR : public ManetRoutingBase
 
 	int OLSR_TOP_HOLD_TIME;
 	int OLSR_MID_HOLD_TIME;
+	int OLSR_NEIGHB_HOLD_TIME;
+
 	/// Maximum allowed jitter.
 	double OLSR_MAXJITTER;
 
@@ -566,6 +584,7 @@ class OLSR : public ManetRoutingBase
     void        rm_topology_tuple(OLSR_topology_tuple*);
     void        add_ifaceassoc_tuple(OLSR_iface_assoc_tuple*);
     void        rm_ifaceassoc_tuple(OLSR_iface_assoc_tuple*);
+    void        rm_nc_tuple(OLSR_nc_tuple*);
 
     const nsaddr_t  & get_main_addr(const nsaddr_t&) const;
     int     degree(OLSR_nb_tuple*);

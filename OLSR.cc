@@ -437,6 +437,45 @@ OLSR_MsgTimer::expire()
 }
 
 
+
+
+void OLSR_NCGenerationTimer::expire(){
+
+	OLSR_nc_tuple* tuple = dynamic_cast<OLSR_nc_tuple*> (tuple_);
+
+    double time =tuple->time();
+    if (time < SIMTIME_DBL(simTime()))
+    {
+        removeTimer();
+        delete this;
+    }
+    else
+    {
+//      agent_->scheduleAt (simTime()+DELAY_T(time),this);
+        agent_->timerQueuePtr->insert(std::pair<simtime_t, OLSR_Timer *>(simTime()+DELAY_T(time),this));
+    }
+}
+
+OLSR_NCGenerationTimer::~OLSR_NCGenerationTimer(){
+
+	removeTimer();
+    if (!tuple_)
+        return;
+    OLSR_nc_tuple* tuple = dynamic_cast<OLSR_nc_tuple *> (tuple_);
+    tuple->asocTimer= NULL;
+    if (agent_->state_ptr==NULL)
+        return;
+
+    agent_->rm_nc_tuple(tuple);
+    delete tuple_;
+
+}
+
+
+
+
+
+
 /********** OLSR class **********/
 
 
@@ -517,23 +556,28 @@ OLSR::initialize(int stage)
         tc_timer_.resched(tc_ival_);//hello_ival_);
         mid_timer_.resched(mid_ival_);//hello_ival_);
 
-
-        std::cout<< " Definisco le costanti " << std::endl;
         /**** keeping old define name to mantain code compability ****/
 
     	/// HELLO messages emission interval.
     	OLSR_HELLO_INTERVAL = hello_ival_;
-        std::cout<< " HELLO IVAL "<<OLSR_HELLO_INTERVAL << std::endl;
 
     	/// TC messages emission interval.
     	OLSR_TC_INTERVAL = tc_ival_;
 
     	/// MID messages emission interval.
     	OLSR_MID_INTERVAL  = tc_ival_;
-
-    	OLSR_TOP_HOLD_TIME = 3*OLSR_TC_INTERVAL;
     	OLSR_MID_HOLD_TIME = 3*OLSR_MID_INTERVAL;
-    	/// Maximum allowed jitter.
+
+
+    	// Holding Timer
+    	OLSR_TOP_HOLD_TIME = par("tcHoldingTime"); //18
+    	OLSR_NEIGHB_HOLD_TIME = par("nbHoldingTime") ; //6
+
+        //std::cout<< " OLSR_TOP_HOLD_TIME "<<OLSR_TOP_HOLD_TIME << std::endl;
+
+        //std::cout<< " OLSR_NEIGHB_HOLD_TIME "<<OLSR_NEIGHB_HOLD_TIME << std::endl;
+
+    	/// Maximum allowed jitter. RFC 18.9
     	OLSR_MAXJITTER = double(OLSR_HELLO_INTERVAL)/4;
 
 
@@ -808,7 +852,11 @@ OLSR::recv_olsr(cMessage* msg)
 		// if it's new create nc_table entry
 		OLSR_nc_entry* entry = nc_table_.lookup(src_addr, op->generation());
 
+		int lin_comb = 0;
+
 		if (entry == NULL){
+
+			lin_comb = op->total_pkt_num() + int(op->total_pkt_num()/lcomb_modifier);
 
 			// create new decoder
 			entry = new OLSR_nc_entry();
@@ -818,11 +866,22 @@ OLSR::recv_olsr(cMessage* msg)
 
 			nc_table_.add_entry(src_addr, op->generation(), entry);
 
+			// Schedules nc entry tuple deletion
+
+		    double now  = CURRENT_TIME;
+			OLSR_nc_tuple* tuple   = new OLSR_nc_tuple;
+			tuple->source_address_ = src_addr;
+			tuple->generation() = op->generation();
+			tuple->time()           = now + OLSR_TOP_HOLD_TIME*lin_comb;
+
+			OLSR_NCGenerationTimer* nc_timer = new OLSR_NCGenerationTimer(this, tuple);
+			nc_timer->resched(DELAY(tuple->time()));
+
 		} else {
 			// if we have received all possible messages remove table entry and
 			// return
 
-			int lin_comb = entry->total_pkts_ + int(entry->total_pkts_/lcomb_modifier);
+			lin_comb = entry->total_pkts_ + int(entry->total_pkts_/lcomb_modifier);
 			if(entry->decoded_pkts_ == lin_comb){
 
 				nc_table_.rm_entry(src_addr, op->generation());
@@ -2764,6 +2823,10 @@ OLSR::rm_ifaceassoc_tuple(OLSR_iface_assoc_tuple* tuple)
           OLSR::node_id(tuple->iface_addr()));
 
     state_.erase_ifaceassoc_tuple(tuple);
+}
+
+void OLSR::rm_nc_tuple(OLSR_nc_tuple* tuple){
+	nc_table_.rm_entry(tuple->src_addr(), tuple->generation());
 }
 
 ///
