@@ -126,6 +126,7 @@ OLSR_state::erase_nb_tuple(OLSR_nb_tuple* tuple)
         if (*it == tuple)
         {
             nbset_.erase(it);
+            NEIGHRoutes.record(nbset_.size());
             break;
         }
     }
@@ -140,6 +141,7 @@ OLSR_state::erase_nb_tuple(const nsaddr_t & main_addr)
         if (tuple->nb_main_addr() == main_addr)
         {
             it = nbset_.erase(it);
+            NEIGHRoutes.record(nbset_.size());
             break;
         }
     }
@@ -149,6 +151,8 @@ void
 OLSR_state::insert_nb_tuple(OLSR_nb_tuple* tuple)
 {
     nbset_.push_back(tuple);
+    NEIGHRoutes.record(nbset_.size());
+
 }
 
 /********** Neighbor 2 Hop Set Manipulation **********/
@@ -358,6 +362,7 @@ OLSR_state::erase_topology_tuple(OLSR_topology_tuple* tuple)
         if (*it == tuple)
         {
             topologyset_.erase(it);
+            TCGraph.record(topologyset_.size());
             break;
         }
     }
@@ -372,6 +377,7 @@ OLSR_state::erase_older_topology_tuples(const nsaddr_t & last_addr, uint16_t ans
         if (tuple->last_addr() == last_addr && tuple->seq() < ansn)
         {
             it = topologyset_.erase(it);
+            TCGraph.record(topologyset_.size());
             if (topologyset_.empty())
                 break;
         }
@@ -385,6 +391,7 @@ void
 OLSR_state::insert_topology_tuple(OLSR_topology_tuple* tuple)
 {
     topologyset_.push_back(tuple);
+    TCGraph.record(topologyset_.size());
 }
 
 /********** Interface Association Set Manipulation **********/
@@ -434,12 +441,15 @@ void OLSR_state::clear_all()
     for (nbset_t::iterator it = nbset_.begin(); it != nbset_.end(); it++)
         delete (*it);
     nbset_.clear();
+    NEIGHRoutes.record(nbset_.size());
     for (nb2hopset_t::iterator it = nb2hopset_.begin(); it != nb2hopset_.end(); it++)
         delete (*it);
     nb2hopset_.clear();
     for (topologyset_t::iterator it = topologyset_.begin(); it != topologyset_.end(); it++)
         delete (*it);
     topologyset_.clear();
+    TCGraph.record(topologyset_.size());
+
 
     for (mprselset_t::iterator it = mprselset_.begin(); it != mprselset_.end(); it++)
         delete (*it);
@@ -467,6 +477,7 @@ OLSR_state::OLSR_state(OLSR_state * st)
     {
         OLSR_nb_tuple* tuple = *it;
         nbset_.push_back(tuple->dup());
+        NEIGHRoutes.record(nbset_.size());
     }
 
     for (nb2hopset_t::iterator it = st->nb2hopset_.begin(); it != st->nb2hopset_.end(); it++)
@@ -479,6 +490,7 @@ OLSR_state::OLSR_state(OLSR_state * st)
     {
         OLSR_topology_tuple* tuple = *it;
         topologyset_.push_back(tuple->dup());
+        TCGraph.record(topologyset_.size());
     }
 
     for (mprset_t::iterator it = st->mprset_.begin(); it != st->mprset_.end(); it++)

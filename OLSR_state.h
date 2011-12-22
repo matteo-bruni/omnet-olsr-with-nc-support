@@ -95,10 +95,14 @@ class OLSR_state : public cObject
     void            insert_ifaceassoc_tuple(OLSR_iface_assoc_tuple*);
     void            clear_all();
 
-    OLSR_state() {}
+    OLSR_state() { NEIGHRoutes.setName("NEIGHRoutes"); TCGraph.setName("TCGraph");}
     ~OLSR_state();
     OLSR_state(OLSR_state *);
     virtual OLSR_state * dup() {return new OLSR_state(this);}
+
+    // statistic var
+    cOutVector NEIGHRoutes;
+    cOutVector TCGraph;
 };
 
 #endif

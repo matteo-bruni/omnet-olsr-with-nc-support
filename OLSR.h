@@ -414,6 +414,8 @@ class OLSR : public ManetRoutingBase
     uint64_t midCounter;
     uint64_t packetSent;
     uint64_t packetRecv;
+    uint64_t totalPacketRecv;
+    uint64_t totalIndSent;
 
     //std::priority_queue<TimerQueueElem> *timerQueuePtr;
     TimerQueue *timerQueuePtr;
@@ -468,8 +470,9 @@ class OLSR : public ManetRoutingBase
      *  Result Analysis
      */
     cOutVector NETRoutes;
-    cOutVector PKTNotDecoded;
-    cOutVector PKTRecDecoded;
+    cOutVector OLSRHelloRec;
+    cOutVector OLSRTCRec;
+
 
 
     /*** Define compability ****/

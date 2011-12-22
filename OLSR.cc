@@ -493,6 +493,8 @@ OLSR::initialize(int stage)
         midCounter=0;
         packetSent=0;
         packetRecv=0;
+        totalPacketRecv=0;
+        totalIndSent =0;
         ff = 0;
 
 		// Network Coding
@@ -512,8 +514,9 @@ OLSR::initialize(int stage)
         lcomb_modifier = par("lcomb_modifier");
 
         NETRoutes.setName("NETRoutes");
-        PKTRecDecoded.setName("PKTRecDecoded");
-        PKTNotDecoded.setName("PKTNotDecoded");
+        OLSRHelloRec.setName("OLSR HelloRec");
+        OLSRTCRec.setName("OLSR TCRec");
+
 
         if (par("reduceFuncionality"))
             EV << "reduceFuncionality true" << endl;
@@ -817,7 +820,11 @@ OLSR::recv_olsr(cMessage* msg)
 
 	std::cout.flush();
 
+	totalPacketRecv++;
+
 	if (par("NetworkCoding").boolValue()){
+
+		//std::cout << "\t RICEVUTO pacchetto al nodo "<< getAddress()<< std::endl;
 
 		OLSR_pkt_coded* op;
 		op = check_packet_coded(PK(msg),src_addr,index);
@@ -885,7 +892,6 @@ OLSR::recv_olsr(cMessage* msg)
 			if(entry->decoded_pkts_ == lin_comb){
 
 				nc_table_.rm_entry(src_addr, op->generation());
-			    PKTNotDecoded.record(1);
 				delete op;
 				return;
 			}
@@ -893,7 +899,6 @@ OLSR::recv_olsr(cMessage* msg)
 			// if we have already decoded this generation
 			if(entry->decoded_pkts_ == entry->total_pkts_){
 				delete op;
-			    PKTNotDecoded.record(1);
 				return;
 			}
 
@@ -902,7 +907,6 @@ OLSR::recv_olsr(cMessage* msg)
 		// add the packet recived to the decoder
 		std::vector<UncodedPacket*> uncoded_pkts_ = entry->decoder_->addPacket(coded_packet_);
 
-	    PKTRecDecoded.record(uncoded_pkts_.size());
 
 		// if size = 0 we haven't decoded anything
 		if (uncoded_pkts_.size() == 0){
@@ -1010,10 +1014,13 @@ OLSR::recv_olsr(cMessage* msg)
 		if (duplicated == NULL)
 		{
 			// Process the message according to its type
-			if (msg.msg_type() == OLSR_HELLO_MSG)
+			if (msg.msg_type() == OLSR_HELLO_MSG){
 				process_hello(msg, ra_addr(), src_addr,index);
+				OLSRHelloRec.record(1);
+			}
 			else if (msg.msg_type() == OLSR_TC_MSG){
 				process_tc(msg, src_addr,index);
+				OLSRTCRec.record(1);
 			}
 			else if (msg.msg_type() == OLSR_MID_MSG)
 				process_mid(msg, src_addr,index);
@@ -1990,6 +1997,10 @@ OLSR::send_pkt()
 			EV <<"Sending Packet Routed! ";
 			packetSent++;
 			sendToIp (op, RT_PORT,destAdd, RT_PORT,IP_DEF_TTL,(nsaddr_t)0);
+
+			// record the number of indipendent packets sent
+			if ( i< num_pkts)
+				totalIndSent++;
 
 			EV <<"Packed Sended";
 		}
@@ -2998,6 +3009,8 @@ void OLSR::finish()
     */
     recordScalar("OLSR totalSent ", packetSent);
     recordScalar("OLSR totalRec ", packetRecv);
+    recordScalar("OLSR totalPktRec ", totalPacketRecv);
+    recordScalar("OLSR totalIndipendentSent", totalIndSent);
     recordScalar("OLSR Hello Sent ", helloCounter);
     recordScalar("OLSR tc sent ", tcCounter);
     recordScalar("OLSR mid sent ", midCounter);

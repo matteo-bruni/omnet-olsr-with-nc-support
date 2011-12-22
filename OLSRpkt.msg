@@ -59,7 +59,7 @@ typedef Uint128 nsaddr_t;
 #endif
 
 /// Maximum number of messages per packet.
-#define OLSR_MAX_MSGS		4
+#define OLSR_MAX_MSGS		1
 #define OLSR_ETX_MAX_MSGS OLSR_MAX_MSGS
 /// Maximum number of hellos per message (4 possible link types * 3 possible nb types).
 #define OLSR_MAX_HELLOS		12
