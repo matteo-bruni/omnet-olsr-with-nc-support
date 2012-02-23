@@ -516,6 +516,8 @@ OLSR::initialize(int stage)
         NETRoutes.setName("NETRoutes");
         OLSRHelloRec.setName("OLSR HelloRec");
         OLSRTCRec.setName("OLSR TCRec");
+        hello_rec_counter = 0;
+        tc_rec_counter = 0;
 
 
         if (par("reduceFuncionality"))
@@ -818,7 +820,6 @@ OLSR::recv_olsr(cMessage* msg)
 	OLSR_msg* msg_array_;	// array of messages to process
 	int msg_size_ = 0;
 
-	std::cout.flush();
 
 	totalPacketRecv++;
 
@@ -1016,11 +1017,13 @@ OLSR::recv_olsr(cMessage* msg)
 			// Process the message according to its type
 			if (msg.msg_type() == OLSR_HELLO_MSG){
 				process_hello(msg, ra_addr(), src_addr,index);
-				OLSRHelloRec.record(1);
+				hello_rec_counter++;
+				OLSRHelloRec.record(hello_rec_counter);
 			}
 			else if (msg.msg_type() == OLSR_TC_MSG){
 				process_tc(msg, src_addr,index);
-				OLSRTCRec.record(1);
+				tc_rec_counter++;
+				OLSRTCRec.record(tc_rec_counter);
 			}
 			else if (msg.msg_type() == OLSR_MID_MSG)
 				process_mid(msg, src_addr,index);
@@ -1596,8 +1599,10 @@ OLSR::process_tc(OLSR_msg& msg, const nsaddr_t &sender_iface,const int &index)
         //  T_time      =  current time + validity time.
         OLSR_topology_tuple* topology_tuple =
             state_.find_topology_tuple(addr, msg.orig_addr());
-        if (topology_tuple != NULL)
+        if (topology_tuple != NULL){
             topology_tuple->time() = now + OLSR::emf_to_seconds(msg.vtime());
+            //std::cout << "\n \n PROLUNGO VITA A TC \n \n" << std::endl;
+        }
         // 4.2. Otherwise, a new tuple MUST be recorded in the topology
         // set where:
         //  T_dest_addr = advertised neighbor main address,

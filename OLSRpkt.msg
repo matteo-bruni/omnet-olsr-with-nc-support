@@ -65,7 +65,7 @@ typedef Uint128 nsaddr_t;
 #define OLSR_MAX_HELLOS		12
 #define OLSR_ETX_MAX_HELLOS OLSR_MAX_HELLOS
 /// Maximum number of addresses advertised on a message.
-#define OLSR_MAX_ADDRS		64
+#define OLSR_MAX_ADDRS		251
 #define OLSR_ETX_MAX_ADDRS OLSR_MAX_ADDRS
 
 /// Size (in bytes) of packet header.

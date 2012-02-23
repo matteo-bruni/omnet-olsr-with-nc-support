@@ -473,6 +473,9 @@ class OLSR : public ManetRoutingBase
     cOutVector OLSRHelloRec;
     cOutVector OLSRTCRec;
 
+    unsigned int hello_rec_counter;
+    unsigned int tc_rec_counter;
+
 
 
     /*** Define compability ****/

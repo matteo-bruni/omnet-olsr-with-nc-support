@@ -441,14 +441,18 @@ void OLSR_state::clear_all()
     for (nbset_t::iterator it = nbset_.begin(); it != nbset_.end(); it++)
         delete (*it);
     nbset_.clear();
-    NEIGHRoutes.record(nbset_.size());
+
+    //NEIGHRoutes.record(0);
+
     for (nb2hopset_t::iterator it = nb2hopset_.begin(); it != nb2hopset_.end(); it++)
         delete (*it);
     nb2hopset_.clear();
+
     for (topologyset_t::iterator it = topologyset_.begin(); it != topologyset_.end(); it++)
         delete (*it);
     topologyset_.clear();
-    TCGraph.record(topologyset_.size());
+
+    //TCGraph.record(0);
 
 
     for (mprselset_t::iterator it = mprselset_.begin(); it != mprselset_.end(); it++)
